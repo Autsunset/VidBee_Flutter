@@ -86,7 +86,7 @@ class CookieService {
     // Bilibili 的高清晰度格式
     if (domain.contains('bilibili.com')) {
       // 1080p+ 格式需要登录
-      final highQualityFormats = ['80', '112', '116', '120', '125', '126', '127'];
+      final highQualityFormats = ['64', '80', '112', '116', '120', '125', '126', '127', '30280', '30232', '30216'];
       if (highQualityFormats.any((f) => formatId.contains(f))) {
         return true;
       }

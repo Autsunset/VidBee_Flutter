@@ -164,7 +164,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
   }
 
   Widget _buildFormatSelector(VideoInfo videoInfo, VideoFormat? selectedFormat) {
-    final formats = _isAudioOnly ? videoInfo.audioFormats : videoInfo.bestVideoFormats;
+    final formats = _isAudioOnly ? videoInfo.bestAudioFormats : videoInfo.bestVideoFormats;
 
     if (formats.isEmpty) {
       return const Text('没有可用的格式');
@@ -184,9 +184,12 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: formats.map((format) {
+          children: formats.asMap().entries.map((entry) {
+            final index = entry.key;
+            final format = entry.value;
             final isSelected = selectedFormat?.formatId == format.formatId;
-            final requiresLogin = _cookieService.formatRequiresLogin(format.formatId, domain);
+            // 对于 Bilibili，只有第一个（最高质量）格式需要登录
+            final requiresLogin = domain.contains('bilibili.com') && index == 0;
             
             return FutureBuilder<bool>(
               future: _cookieService.hasCookie(domain),
@@ -250,14 +253,28 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     final parts = <String>[];
     
     // 优先显示分辨率或码率
-    if (format.height != null && format.height! > 0) {
-      parts.add('${format.height}p');
-    } else if (format.width != null && format.height != null) {
-      parts.add('${format.width}x${format.height}');
-    } else if (format.tbr != null) {
-      parts.add('${format.tbr}k');
-    } else if (format.formatNote != null) {
-      parts.add(format.formatNote!);
+    if (!format.hasVideo) {
+      // 音频格式：优先显示比特率
+      if (format.tbr != null) {
+        parts.add('${format.tbr}k');
+      } else if (format.formatNote != null) {
+        parts.add(format.formatNote!);
+      } else {
+        parts.add('音频');
+      }
+    } else {
+      // 视频格式：显示分辨率和比特率
+      if (format.height != null && format.height! > 0) {
+        parts.add('${format.height}p');
+      } else if (format.width != null && format.height != null && format.width! > 0 && format.height! > 0) {
+        parts.add('${format.width}x${format.height}');
+      } else if (format.formatNote != null) {
+        parts.add(format.formatNote!);
+      }
+      // 添加比特率
+      if (format.tbr != null) {
+        parts.add('${format.tbr}k');
+      }
     }
     
     if (format.ext.isNotEmpty) {
@@ -266,6 +283,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     
     if (format.filesize != null) {
       parts.add(_formatFileSize(format.filesize!));
+    } else if (format.filesizeApprox != null) {
+      parts.add(_formatFileSize(format.filesizeApprox!));
     }
     
     return parts.isEmpty ? format.formatId : parts.join(' • ');
@@ -299,9 +318,36 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       if (videoInfo != null) {
         ref.read(currentVideoInfoProvider.notifier).state = videoInfo;
         // 默认选择第一个格式
-        final formats = _isAudioOnly ? videoInfo.audioFormats : videoInfo.bestVideoFormats;
+        final formats = _isAudioOnly ? videoInfo.bestAudioFormats : videoInfo.bestVideoFormats;
         if (formats.isNotEmpty) {
           ref.read(selectedFormatProvider.notifier).state = formats.first;
+        }
+      } else {
+        // 解析失败，显示错误提示
+        if (mounted) {
+          final domain = _cookieService.extractDomain(url);
+          final hasCookie = await _cookieService.hasCookie(domain);
+          
+          String errorMessage;
+          if (domain.contains('douyin.com') || domain.contains('youtube.com')) {
+            if (hasCookie) {
+              errorMessage = '解析失败！\n\n您的 Cookies 可能已过期，请尝试在设置中重新添加 Cookies。';
+            } else {
+              errorMessage = '解析失败！\n\n该网站需要新鲜的 Cookies 才能解析，请在设置中添加 Cookies。';
+            }
+          } else if (domain.contains('bilibili.com')) {
+            errorMessage = '解析失败！\n\n请检查网络连接或视频链接是否正确。Bilibili 的低清晰度视频无需 Cookies 也可解析。';
+          } else {
+            errorMessage = '解析失败！\n\n请检查网络连接或视频链接是否正确。某些网站可能需要 Cookies，请在设置中添加后重试。';
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              duration: const Duration(seconds: 8),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
         }
       }
     }
@@ -354,6 +400,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       RegExp(r'https?://(?:www\.)?youtube\.com/watch\?v=[^\s]+'),
       RegExp(r'https?://(?:www\.)?youtube\.com/shorts/[^\s]+'),
       RegExp(r'https?://youtu\.be/[^\s]+'),
+      // 抖音
+      RegExp(r'https?://(?:www\.)?douyin\.com/[^\s]+'),
+      RegExp(r'https?://v\.douyin\.com/[^\s]+'),
       // 通用 URL
       RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+'),
     ];
@@ -362,8 +411,13 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       final match = pattern.firstMatch(text);
       if (match != null) {
         var url = match.group(0) ?? '';
-        // 移除末尾的标点符号
+        // 移除末尾的标点符号和空白字符
         url = url.replaceAll(RegExp(r'[.,;:!?\s]+$'), '');
+        // 移除查询参数中的多余部分（如果有）
+        if (url.contains('?')) {
+          url = url.split('?')[0];
+        }
+        print('提取到的 URL: $url');
         return url;
       }
     }

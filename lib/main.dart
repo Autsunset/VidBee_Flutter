@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'shared/constants/app_constants.dart';
 import 'core/providers/service_providers.dart';
+import 'core/services/services.dart';
 import 'features/download/download.dart';
 import 'features/history/history.dart';
 import 'features/settings/settings.dart';
@@ -14,6 +16,10 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // 初始化通知服务
+  final notificationService = NotificationService();
+  await notificationService.initialize();
 
   runApp(
     const ProviderScope(
@@ -54,14 +60,14 @@ class VidBeeApp extends ConsumerWidget {
   }
 }
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
@@ -69,6 +75,23 @@ class _HomePageState extends State<HomePage> {
     const HistoryPage(),
     const SettingsPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedSettings();
+  }
+
+  Future<void> _loadSavedSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    // 加载下载路径
+    final savedPath = prefs.getString('download_path');
+    if (savedPath != null && savedPath.isNotEmpty) {
+      if (mounted) {
+        ref.read(downloadPathProvider.notifier).state = savedPath;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

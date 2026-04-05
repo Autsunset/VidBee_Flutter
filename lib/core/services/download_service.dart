@@ -7,6 +7,7 @@ import '../models/download_task.dart';
 import '../models/video_info.dart';
 import 'ytdlp_service.dart';
 import 'history_service.dart';
+import 'notification_service.dart';
 import '../utils/event_bus.dart';
 
 /// 下载服务类
@@ -17,6 +18,7 @@ class DownloadService {
 
   final YtDlpService _ytDlpService = YtDlpService();
   final HistoryService _historyService = HistoryService();
+  final NotificationService _notificationService = NotificationService();
   final Uuid _uuid = const Uuid();
   
   final List<DownloadTask> _downloadQueue = [];
@@ -48,9 +50,16 @@ class DownloadService {
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
         
-        // 如果下载完成，保存到历史记录
+        // 如果下载完成，保存到历史记录并显示完成通知
         if (event.status == DownloadStatus.completed) {
+          _notificationService.showDownloadComplete(
+            taskId: task.id,
+            title: task.title ?? '视频',
+          );
           _onTaskComplete(updatedTask);
+        } else if (event.status == DownloadStatus.cancelled) {
+          // 取消下载时取消通知
+          _notificationService.cancelNotification(task.id);
         }
       }
     });
@@ -65,6 +74,14 @@ class DownloadService {
         );
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
+        
+        // 显示错误通知
+        _notificationService.showDownloadError(
+          taskId: task.id,
+          title: task.title ?? '视频',
+          error: event.error,
+        );
+        
         _onTaskComplete(updatedTask);
       }
     });
@@ -81,6 +98,15 @@ class DownloadService {
         final updatedTask = task.copyWith(progress: progress);
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
+        
+        // 更新下载进度通知
+        _notificationService.showDownloadProgress(
+          taskId: task.id,
+          title: task.title ?? '正在下载...',
+          progress: event.progress.toInt(),
+          speed: progress.currentSpeed,
+          eta: progress.eta,
+        );
       }
     });
   }

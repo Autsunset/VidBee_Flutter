@@ -5,11 +5,13 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/constants/app_constants.dart';
 import '../../core/providers/service_providers.dart';
 import '../../core/services/cookie_service.dart';
 import '../../core/utils/permission_helper.dart';
 import 'bilibili_login_page.dart';
+import 'webview_login_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -27,6 +29,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _language = '简体中文';
   final CookieService _cookieService = CookieService();
   Map<String, String> _cookies = {};
+  Map<String, String> _versionInfo = {};
+  bool _isUpdating = false;
 
   @override
   void initState() {
@@ -34,15 +38,102 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _loadCookies();
     _themeMode = ref.read(themeModeProvider);
     _initializeDownloadPath();
+    _loadVersionInfo();
+    _loadSettings();
+  }
+
+  /// 加载保存的设置
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _videoQuality = prefs.getString('default_video_quality') ?? '1080p';
+      _audioQuality = prefs.getString('default_audio_quality') ?? '3';
+      // 下载路径从 provider 读取
+    });
+  }
+
+  /// 保存设置
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('default_video_quality', _videoQuality);
+    await prefs.setString('default_audio_quality', _audioQuality);
+    // 下载路径在 provider 中已经处理
+  }
+
+  Future<void> _loadVersionInfo() async {
+    try {
+      final ytDlpService = ref.read(ytDlpServiceProvider);
+      final versionInfo = await ytDlpService.getVersionInfo();
+      if (mounted) {
+        setState(() {
+          _versionInfo = versionInfo;
+        });
+      }
+    } catch (e) {
+      print('加载版本信息失败: $e');
+    }
+  }
+
+  Future<void> _updateYtDlp() async {
+    if (_isUpdating) return;
+    
+    if (mounted) {
+      setState(() {
+        _isUpdating = true;
+      });
+    }
+
+    try {
+      final ytDlpService = ref.read(ytDlpServiceProvider);
+      final success = await ytDlpService.updateYtDlp();
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('yt-dlp 更新成功！'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          await _loadVersionInfo();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('yt-dlp 更新失败，请稍后重试。'),
+              duration: Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('更新失败: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
   }
   
   Future<void> _initializeDownloadPath() async {
-    // 直接使用公共下载目录，不使用应用私有目录
-    // 如果Provider中的值还是初始值，就设置为公共目录
-    final currentPath = ref.read(downloadPathProvider);
-    if (currentPath == '/storage/emulated/0/Download/VidBee') {
-      // 保持默认值不变
-      return;
+    final prefs = await SharedPreferences.getInstance();
+    final savedPath = prefs.getString('download_path');
+    if (savedPath != null && savedPath.isNotEmpty) {
+      // 如果有保存的路径，使用保存的路径
+      ref.read(downloadPathProvider.notifier).state = savedPath;
+    } else {
+      // 否则使用默认路径
+      ref.read(downloadPathProvider.notifier).state = '/storage/emulated/0/Download';
     }
   }
 
@@ -79,6 +170,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       
       if (selectedPath != null && mounted) {
         ref.read(downloadPathProvider.notifier).state = selectedPath;
+        // 保存下载路径
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('download_path', selectedPath);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('下载路径已设置为: $selectedPath')),
@@ -140,6 +234,58 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Bilibili 登录成功！'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 一键登录 抖音
+  Future<void> _loginDouyin(BuildContext context) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => const WebViewLoginPage(
+          title: '抖音',
+          loginUrl: 'https://www.douyin.com/',
+          domain: 'douyin.com',
+          successUrl: 'https://www.douyin.com/',
+        ),
+      ),
+    );
+    
+    if (result == true) {
+      await _loadCookies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 抖音登录成功！'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 一键登录 YouTube
+  Future<void> _loginYouTube(BuildContext context) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => const WebViewLoginPage(
+          title: 'YouTube',
+          loginUrl: 'https://www.youtube.com/',
+          domain: 'youtube.com',
+          successUrl: 'https://www.youtube.com/',
+        ),
+      ),
+    );
+    
+    if (result == true) {
+      await _loadCookies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ YouTube 登录成功！'),
             backgroundColor: Colors.green,
           ),
         );
@@ -304,6 +450,140 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ),
+        // 一键登录 抖音
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.login, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '抖音登录',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _loginDouyin(context),
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('一键登录'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showCookieDialog(context, 'douyin.com'),
+                        icon: const Icon(Icons.edit),
+                        label: const Text('手动输入'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      _cookies.containsKey('douyin.com') 
+                          ? Icons.check_circle 
+                          : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: _cookies.containsKey('douyin.com') 
+                          ? Colors.green 
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _cookies.containsKey('douyin.com') 
+                          ? '已登录 - 可以解析抖音视频' 
+                          : '未登录 - 无法解析抖音视频',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: _cookies.containsKey('douyin.com') 
+                                ? Colors.green 
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 一键登录 YouTube
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.login, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'YouTube 登录',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _loginYouTube(context),
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('一键登录'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showCookieDialog(context, 'youtube.com'),
+                        icon: const Icon(Icons.edit),
+                        label: const Text('手动输入'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      _cookies.containsKey('youtube.com') 
+                          ? Icons.check_circle 
+                          : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: _cookies.containsKey('youtube.com') 
+                          ? Colors.green 
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _cookies.containsKey('youtube.com') 
+                          ? '已登录 - 可以解析 YouTube 视频' 
+                          : '未登录 - 无法解析 YouTube 视频',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: _cookies.containsKey('youtube.com') 
+                                ? Colors.green 
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
         ListTile(
           leading: const Icon(Icons.add_circle_outline),
           title: const Text('添加其他网站 Cookie'),
@@ -324,11 +604,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         const Divider(),
         _buildSectionHeader('高级'),
         ListTile(
-          leading: const Icon(Icons.update_outlined),
+          leading: _isUpdating
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.update_outlined),
           title: const Text('更新 yt-dlp'),
-          subtitle: const Text('更新到最新版本'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {},
+          subtitle: Text(
+            _versionInfo.isEmpty
+                ? '更新到最新版本'
+                : '当前版本: yt-dlp ${_versionInfo['yt-dlp'] ?? 'Unknown'}',
+          ),
+          trailing: _isUpdating
+              ? null
+              : const Icon(Icons.chevron_right),
+          onTap: _isUpdating ? null : _updateYtDlp,
         ),
         ListTile(
           leading: const Icon(Icons.delete_sweep_outlined),
@@ -396,6 +688,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           FilledButton(
             onPressed: () {
               setState(() {});
+              _saveSettings();
               Navigator.of(context).pop();
             },
             child: const Text('确定'),
@@ -449,6 +742,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           FilledButton(
             onPressed: () {
               setState(() {});
+              _saveSettings();
               Navigator.of(context).pop();
             },
             child: const Text('确定'),
@@ -494,6 +788,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           FilledButton(
             onPressed: () {
               setState(() {});
+              _saveSettings();
               Navigator.of(context).pop();
             },
             child: const Text('确定'),

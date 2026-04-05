@@ -13,10 +13,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -30,11 +31,33 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            val alias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            val password = System.getenv("KEY_PASSWORD") ?: "android"
+            
+            // 如果有环境变量，使用环境变量中的 keystore；否则使用本地 debug.keystore
+            val keystoreFile = if (keystorePath != null && keystorePath.isNotEmpty()) {
+                file(keystorePath)
+            } else {
+                // 本地编译时，使用用户目录下的 debug.keystore
+                val userHome = System.getProperty("user.home")
+                file("$userHome/.android/debug.keystore")
+            }
+            
+            storeFile = keystoreFile
+            storePassword = keystorePassword
+            keyAlias = alias
+            keyPassword = password
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用 release 签名配置（如果有），否则用 debug 签名
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             // Disable code shrinking and obfuscation to prevent crashes
             isMinifyEnabled = false
             isShrinkResources = false
@@ -45,6 +68,10 @@ android {
             )
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 }
 
 flutter {

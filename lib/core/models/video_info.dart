@@ -78,7 +78,18 @@ class VideoFormat {
   }
 
   String get resolution {
-    if (width != null && height != null) {
+    // 如果是音频格式，显示比特率
+    if (!hasVideo) {
+      if (tbr != null) {
+        return '${tbr}k';
+      } else if (formatNote != null) {
+        return formatNote!;
+      } else {
+        return '音频';
+      }
+    }
+    // 如果是视频格式，显示分辨率
+    if (width != null && height != null && width! > 0 && height! > 0) {
       return '${width}x$height';
     }
     return formatNote ?? 'Unknown';
@@ -101,8 +112,25 @@ class VideoFormat {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  bool get hasVideo => vcodec != null && vcodec != 'none';
-  bool get hasAudio => acodec != null && acodec != 'none';
+  bool get hasVideo {
+    // 严格判断：必须有视频编码，或者有有效的分辨率（> 0）
+    final hasValidCodec = vcodec != null && vcodec != 'none';
+    final hasValidHeight = height != null && height! > 0;
+    final hasValidWidth = width != null && width! > 0;
+    
+    // 如果没有视频编码，只看分辨率是否有效
+    if (!hasValidCodec) {
+      return hasValidHeight || hasValidWidth;
+    }
+    
+    // 有视频编码，认为有视频
+    return true;
+  }
+  
+  bool get hasAudio {
+    // 如果有音频编码，或者没有视频（纯音频），认为有音频
+    return (acodec != null && acodec != 'none') || !hasVideo;
+  }
 }
 
 class VideoInfo {
@@ -187,18 +215,65 @@ class VideoInfo {
   }
 
   List<VideoFormat> get bestVideoFormats {
-    final sorted = videoFormats
-        .where((f) => f.height != null)
-        .toList()
-      ..sort((a, b) => (b.height ?? 0).compareTo(a.height ?? 0));
-    final uniqueResolutions = <String, VideoFormat>{};
+    // 首先按高度排序，如果没有高度则按码率排序
+    final sorted = videoFormats.toList()
+      ..sort((a, b) {
+        // 优先比较高度
+        if (a.height != null && b.height != null) {
+          return (b.height ?? 0).compareTo(a.height ?? 0);
+        }
+        // 如果一个有高度，一个没有，有高度的排前面
+        if (a.height != null) return -1;
+        if (b.height != null) return 1;
+        // 都没有高度，比较码率
+        return (b.tbr ?? 0).compareTo(a.tbr ?? 0);
+      });
+    
+    // 去重，保留每个分辨率的最佳格式
+    final uniqueFormats = <String, VideoFormat>{};
     for (final format in sorted) {
-      final key = '${format.height}p';
-      if (!uniqueResolutions.containsKey(key)) {
-        uniqueResolutions[key] = format;
+      String key;
+      if (format.height != null) {
+        key = '${format.height}p';
+      } else if (format.tbr != null) {
+        key = '${format.tbr}k';
+      } else if (format.formatNote != null) {
+        key = format.formatNote!;
+      } else {
+        key = format.formatId;
+      }
+      
+      if (!uniqueFormats.containsKey(key)) {
+        uniqueFormats[key] = format;
       }
     }
-    return uniqueResolutions.values.toList();
+    return uniqueFormats.values.toList();
+  }
+
+  List<VideoFormat> get bestAudioFormats {
+    // 按码率从高到低排序
+    final sorted = audioFormats.toList()
+      ..sort((a, b) {
+        return (b.tbr ?? 0).compareTo(a.tbr ?? 0);
+      });
+    
+    // 去重，保留每个码率的最佳格式
+    final uniqueFormats = <String, VideoFormat>{};
+    for (final format in sorted) {
+      String key;
+      if (format.tbr != null) {
+        key = '${format.tbr}k';
+      } else if (format.formatNote != null) {
+        key = format.formatNote!;
+      } else {
+        key = format.formatId;
+      }
+      
+      if (!uniqueFormats.containsKey(key)) {
+        uniqueFormats[key] = format;
+      }
+    }
+    return uniqueFormats.values.toList();
   }
 
   VideoFormat? get bestAudioFormat {

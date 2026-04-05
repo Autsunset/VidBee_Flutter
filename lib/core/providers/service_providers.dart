@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import '../database/app_database.dart';
@@ -62,5 +63,6 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) {
 });
 
 final downloadPathProvider = StateProvider<String>((ref) {
+  // 注意：这里不能直接用 async，所以我们在 settings_page 的 _initializeDownloadPath 中处理
   return '/storage/emulated/0/Download';
 });

@@ -33,6 +33,17 @@ class YtDlpService {
       if (result.success) {
         _isInitialized = true;
         _setupEventListeners();
+        
+        // 初始化成功后自动更新 yt-dlp 到最新版本
+        try {
+          print('正在自动更新 yt-dlp 到最新版本...');
+          final updateResult = await _youtubeDL.updateYoutubeDL();
+          // UpdateResult 可能没有 success 字段，直接打印结果即可
+          print('yt-dlp 更新完成');
+        } catch (e) {
+          print('自动更新 yt-dlp 时出错（不影响使用）: $e');
+        }
+        
         return true;
       } else {
         print('YtDlpService 初始化失败: ${result.errorMessage}');
