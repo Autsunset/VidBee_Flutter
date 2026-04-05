@@ -35,7 +35,7 @@ android {
 
     signingConfigs {
         create("release") {
-            val keyPropertiesFile = file("key.properties")
+            val keyPropertiesFile = file("../key.properties")
             if (keyPropertiesFile.exists()) {
                 val keyProperties = Properties()
                 keyProperties.load(keyPropertiesFile.inputStream())
