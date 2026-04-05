@@ -31,10 +31,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keyPropertiesFile = file("key.properties")
+            if (keyPropertiesFile.exists()) {
+                val keyProperties = java.util.Properties()
+                keyProperties.load(keyPropertiesFile.inputStream())
+                storeFile = file(keyProperties["storeFile"] as String)
+                storePassword = keyProperties["storePassword"] as String
+                keyAlias = keyProperties["keyAlias"] as String
+                keyPassword = keyProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // 使用默认的 debug 签名
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用 release 签名配置
+            signingConfig = signingConfigs.getByName("release")
             // Disable code shrinking and obfuscation to prevent crashes
             isMinifyEnabled = false
             isShrinkResources = false
