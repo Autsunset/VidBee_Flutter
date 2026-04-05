@@ -38,28 +38,21 @@ android {
             val alias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
             val password = System.getenv("KEY_PASSWORD") ?: "android"
             
-            // 只有当 keystorePath 存在且文件存在时才配置签名
+            // 必须使用配置的 keystore
             if (keystorePath != null && keystorePath.isNotEmpty()) {
                 val keystoreFile = file(keystorePath)
-                if (keystoreFile.exists()) {
-                    storeFile = keystoreFile
-                    storePassword = keystorePassword
-                    keyAlias = alias
-                    keyPassword = password
-                }
+                storeFile = keystoreFile
+                storePassword = keystorePassword
+                keyAlias = alias
+                keyPassword = password
             }
         }
     }
 
     buildTypes {
         release {
-            // 尝试使用 release 签名配置，如果未配置则使用 debug 签名
-            val releaseConfig = signingConfigs.findByName("release")
-            if (releaseConfig?.storeFile != null) {
-                signingConfig = releaseConfig
-            } else {
-                signingConfig = signingConfigs.getByName("debug")
-            }
+            // 使用 release 签名配置
+            signingConfig = signingConfigs.getByName("release")
             // Disable code shrinking and obfuscation to prevent crashes
             isMinifyEnabled = false
             isShrinkResources = false
