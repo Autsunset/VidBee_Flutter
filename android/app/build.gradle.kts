@@ -31,28 +31,10 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-            val alias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
-            val password = System.getenv("KEY_PASSWORD") ?: "android"
-            
-            // 必须使用配置的 keystore
-            if (keystorePath != null && keystorePath.isNotEmpty()) {
-                val keystoreFile = file(keystorePath)
-                storeFile = keystoreFile
-                storePassword = keystorePassword
-                keyAlias = alias
-                keyPassword = password
-            }
-        }
-    }
-
     buildTypes {
         release {
-            // 使用 release 签名配置
-            signingConfig = signingConfigs.getByName("release")
+            // 使用默认的 debug 签名
+            signingConfig = signingConfigs.getByName("debug")
             // Disable code shrinking and obfuscation to prevent crashes
             isMinifyEnabled = false
             isShrinkResources = false
