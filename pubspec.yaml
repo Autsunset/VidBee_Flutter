@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.1+2
 
 environment:
-  sdk: ^3.5.0
+  sdk: ^3.11.4
 
 dependencies:
   flutter:
@@ -26,7 +26,7 @@ dependencies:
   drift: ^2.25.0
   sqlite3_flutter_libs: ^0.5.29
   path_provider: ^2.1.5
-  path: ^1.9.0
+  path: ^1.9.1
 
   # 网络和下载
   http: ^1.3.0
@@ -63,7 +63,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
   drift_dev: ^2.25.0
   build_runner: ^2.4.15
   flutter_launcher_icons: ^0.14.1
