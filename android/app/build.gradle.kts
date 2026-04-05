@@ -38,26 +38,28 @@ android {
             val alias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
             val password = System.getenv("KEY_PASSWORD") ?: "android"
             
-            // 如果有环境变量，使用环境变量中的 keystore；否则使用本地 debug.keystore
-            val keystoreFile = if (keystorePath != null && keystorePath.isNotEmpty()) {
-                file(keystorePath)
-            } else {
-                // 本地编译时，使用用户目录下的 debug.keystore
-                val userHome = System.getProperty("user.home")
-                file("$userHome/.android/debug.keystore")
+            // 只有当 keystorePath 存在且文件存在时才配置签名
+            if (keystorePath != null && keystorePath.isNotEmpty()) {
+                val keystoreFile = file(keystorePath)
+                if (keystoreFile.exists()) {
+                    storeFile = keystoreFile
+                    storePassword = keystorePassword
+                    keyAlias = alias
+                    keyPassword = password
+                }
             }
-            
-            storeFile = keystoreFile
-            storePassword = keystorePassword
-            keyAlias = alias
-            keyPassword = password
         }
     }
 
     buildTypes {
         release {
-            // 使用 release 签名配置（如果有），否则用 debug 签名
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // 尝试使用 release 签名配置，如果未配置则使用 debug 签名
+            val releaseConfig = signingConfigs.findByName("release")
+            if (releaseConfig?.storeFile != null) {
+                signingConfig = releaseConfig
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             // Disable code shrinking and obfuscation to prevent crashes
             isMinifyEnabled = false
             isShrinkResources = false
