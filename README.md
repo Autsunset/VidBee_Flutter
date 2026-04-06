@@ -10,9 +10,9 @@ VidBee_Flutter is currently under active development, and feedback is welcome fo
 
 #### 📸 Screenshots
 
-| 主页 | 设置 | 设置 | 解析示例 |
-|------|------|------|----------|
-| ![主页](主页.png) | ![设置1](设置1.png) | ![设置2](设置2.png) | ![解析示例](解析示例.png) |
+| Home | Settings | Settings | Parse Example |
+|------|----------|----------|--------------|
+| ![Home](home.png) | ![Settings 1](settings1.png) | ![Settings 2](settings2.png) | ![Parse Example](parse_example.png) |
 
 > [!IMPORTANT]
 >
@@ -85,7 +85,7 @@ VidBee_Flutter 目前正在积极开发中，欢迎对遇到的任何 [问题](h
 
 | 主页 | 设置 | 设置 | 解析示例 |
 |------|------|------|----------|
-| ![主页](主页.png) | ![设置1](设置1.png) | ![设置2](设置2.png) | ![解析示例](解析示例.png) |
+| ![主页](home.png) | ![设置1](settings1.png) | ![设置2](settings2.png) | ![解析示例](parse_example.png) |
 
 > [!IMPORTANT]
 >
