@@ -10,9 +10,13 @@ VidBee_Flutter is currently under active development, and feedback is welcome fo
 
 #### 📸 Screenshots
 
-| Home | Settings | Settings | Parse Example |
-|------|----------|----------|--------------|
-| ![Home](home.png) | ![Settings 1](settings1.png) | ![Settings 2](settings2.png) | ![Parse Example](parse_example.png) |
+| Home | Settings |
+|------|----------|
+| ![Home](home.png) | ![Settings 1](settings1.png) |
+
+| Settings | Parse Example |
+|----------|--------------|
+| ![Settings 2](settings2.png) | ![Parse Example](parse_example.png) |
 
 > [!IMPORTANT]
 >
