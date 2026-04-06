@@ -87,9 +87,13 @@ VidBee_Flutter 目前正在积极开发中，欢迎对遇到的任何 [问题](h
 
 #### 📸 截图预览
 
-| 主页 | 设置 | 设置 | 解析示例 |
-|------|------|------|----------|
-| ![主页](home.png) | ![设置1](settings1.png) | ![设置2](settings2.png) | ![解析示例](parse_example.png) |
+| 主页 | 设置 |
+|------|------|
+| ![主页](home.png) | ![设置1](settings1.png) |
+
+| 设置 | 解析示例 |
+|------|----------|
+| ![设置2](settings2.png) | ![解析示例](parse_example.png) |
 
 > [!IMPORTANT]
 >
