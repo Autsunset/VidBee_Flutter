@@ -27,6 +27,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _audioQuality = '3';
   ThemeMode _themeMode = ThemeMode.system;
   String _language = '简体中文';
+  String _customUA = '';
   final CookieService _cookieService = CookieService();
   Map<String, String> _cookies = {};
   Map<String, String> _versionInfo = {};
@@ -48,6 +49,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() {
       _videoQuality = prefs.getString('default_video_quality') ?? '1080p';
       _audioQuality = prefs.getString('default_audio_quality') ?? '3';
+      _customUA = prefs.getString('custom_ua') ?? '';
       // 下载路径从 provider 读取
     });
   }
@@ -57,6 +59,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('default_video_quality', _videoQuality);
     await prefs.setString('default_audio_quality', _audioQuality);
+    await prefs.setString('custom_ua', _customUA);
     // 下载路径在 provider 中已经处理
   }
 
@@ -628,6 +631,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showClearCacheDialog(context),
         ),
+        ListTile(
+          leading: const Icon(Icons.code),
+          title: const Text('自定义 User-Agent'),
+          subtitle: Text(
+            _customUA.isEmpty ? '使用默认 UA' : _customUA.length > 30 ? '${_customUA.substring(0, 30)}...' : _customUA,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showCustomUADialog(context),
+        ),
 
         // 关于
         const Divider(),
@@ -1195,5 +1207,78 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       case ThemeMode.dark:
         return '深色';
     }
+  }
+
+  void _showCustomUADialog(BuildContext context) {
+    final controller = TextEditingController(text: _customUA);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('自定义 User-Agent'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '设置自定义的 User-Agent 字符串，用于某些需要特定 UA 的网站。留空则使用默认 UA。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '常见 UA 示例：\n'
+              '• 抖音电脑端：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n'
+              '• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n'
+              '• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'User-Agent',
+                hintText: '粘贴 User-Agent...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _customUA = '';
+              });
+              _saveSettings();
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('已恢复默认 User-Agent')),
+              );
+            },
+            child: const Text('恢复默认'),
+          ),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                _customUA = controller.text;
+              });
+              _saveSettings();
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('User-Agent 已保存')),
+              );
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
   }
 }
