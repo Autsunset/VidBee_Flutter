@@ -44,6 +44,20 @@ Seamlessly log in to platforms like Bilibili and YouTube using WebView for acces
 - Multi-language support (Chinese, English, Japanese, Korean, etc.)
 - Cookie management and Custom User-Agent
 
+---
+
+### 💡 Tips & Troubleshooting
+
+#### ⚠️ Custom User-Agent (Highly Recommended)
+Some websites, such as **YouTube**, may fail to download or login correctly if you use the default system User-Agent. It is highly recommended to set a **real User-Agent** from your actual browser:
+
+**How to obtain your real User-Agent:**
+1. Open your browser (on PC or Android).
+2. Search for **"my user agent"** on Google or Bing.
+3. Copy the string (e.g., `Mozilla/5.0 (Windows NT 10.0; Win64; x64)...`) and paste it into the **Custom User-Agent** field in VidBee's settings.
+4. Alternatively, on a PC, press **F12** to open Developer Tools, go to the **Network** tab, refresh the page, click any request, and find the `User-Agent` under **Request Headers**.
+
+
 ### 🌐 Supported Sites
 VidBee_Flutter supports 1000+ video and audio platforms through yt-dlp.
 
