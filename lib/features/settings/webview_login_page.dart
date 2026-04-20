@@ -9,6 +9,7 @@ class WebViewLoginPage extends StatefulWidget {
   final String domain;
   final String? successUrl;
   final List<String>? requiredCookies;
+  final String? userAgent;
 
   const WebViewLoginPage({
     super.key,
@@ -17,6 +18,7 @@ class WebViewLoginPage extends StatefulWidget {
     required this.domain,
     this.successUrl,
     this.requiredCookies,
+    this.userAgent,
   });
 
   @override
@@ -44,7 +46,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        widget.userAgent ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       )
       ..setNavigationDelegate(
         NavigationDelegate(

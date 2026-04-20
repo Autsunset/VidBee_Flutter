@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'shared/constants/app_constants.dart';
+import 'shared/i18n/app_localizations.dart';
 import 'core/providers/service_providers.dart';
 import 'core/services/services.dart';
 import 'features/download/download.dart';
@@ -34,6 +35,7 @@ class VidBeeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final languageCode = ref.watch(languageProvider);
     
     const primaryColor = Color(0xFFF9B61B);
     
@@ -55,6 +57,9 @@ class VidBeeApp extends ConsumerWidget {
         ),
       ),
       themeMode: themeMode,
+      locale: Locale(languageCode),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: const HomePage(),
     );
   }
@@ -91,10 +96,19 @@ class _HomePageState extends ConsumerState<HomePage> {
         ref.read(downloadPathProvider.notifier).state = savedPath;
       }
     }
+    // 加载语言设置
+    final savedLanguage = prefs.getString('language');
+    if (savedLanguage != null && savedLanguage.isNotEmpty) {
+      if (mounted) {
+        ref.read(languageProvider.notifier).state = savedLanguage;
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppConstants.appName),
@@ -113,21 +127,21 @@ class _HomePageState extends ConsumerState<HomePage> {
             _selectedIndex = index;
           });
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.download_outlined),
-            selectedIcon: Icon(Icons.download),
-            label: '下载',
+            icon: const Icon(Icons.download_outlined),
+            selectedIcon: const Icon(Icons.download),
+            label: loc.download,
           ),
           NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: '历史',
+            icon: const Icon(Icons.history_outlined),
+            selectedIcon: const Icon(Icons.history),
+            label: loc.history,
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '设置',
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: loc.settings,
           ),
         ],
       ),

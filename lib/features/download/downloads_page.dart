@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/providers.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/event_bus.dart';
+import '../../shared/i18n/app_localizations.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
   const DownloadsPage({super.key});
@@ -62,9 +63,10 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   @override
   Widget build(BuildContext context) {
     final tasks = ref.watch(downloadTasksProvider);
+    final loc = AppLocalizations.of(context)!;
 
     if (tasks.isEmpty) {
-      return _buildEmptyState(context);
+      return _buildEmptyState(context, loc);
     }
 
     return ListView.builder(
@@ -73,11 +75,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       itemBuilder: (context, index) => DownloadTaskCard(
         task: tasks[index],
         onCancel: () => _cancelTask(tasks[index].id),
+        loc: loc,
       ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, AppLocalizations loc) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -89,12 +92,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            '暂无下载任务',
+            loc.noDownloads,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            '点击右上角的 + 按钮添加下载',
+            loc.clickToAddDownload,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -114,11 +117,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 class DownloadTaskCard extends StatelessWidget {
   final DownloadTask task;
   final VoidCallback onCancel;
+  final AppLocalizations loc;
 
   const DownloadTaskCard({
     super.key,
     required this.task,
     required this.onCancel,
+    required this.loc,
   });
 
   @override
@@ -169,8 +174,8 @@ class DownloadTaskCard extends StatelessWidget {
                           _buildStatusChip(context),
                           const SizedBox(width: 8),
                           if (task.type == DownloadType.audio)
-                            const Chip(
-                              label: Text('音频'),
+                            Chip(
+                              label: Text(loc.audio),
                               padding: EdgeInsets.zero,
                               visualDensity: VisualDensity.compact,
                             ),
@@ -216,7 +221,7 @@ class DownloadTaskCard extends StatelessWidget {
                   child: TextButton.icon(
                     onPressed: onCancel,
                     icon: const Icon(Icons.cancel_outlined),
-                    label: const Text('取消'),
+                    label: Text(loc.cancel),
                   ),
                 ),
               ),
@@ -233,27 +238,27 @@ class DownloadTaskCard extends StatelessWidget {
     switch (task.status) {
       case DownloadStatus.pending:
         color = Colors.orange;
-        label = '等待中';
+        label = loc.pendingTask;
         break;
       case DownloadStatus.downloading:
         color = Colors.blue;
-        label = '下载中';
+        label = loc.downloadingTask;
         break;
       case DownloadStatus.processing:
         color = Colors.purple;
-        label = '处理中';
+        label = loc.processingTask;
         break;
       case DownloadStatus.completed:
         color = Colors.green;
-        label = '已完成';
+        label = loc.completedTask;
         break;
       case DownloadStatus.error:
         color = Colors.red;
-        label = '失败';
+        label = loc.failedTask;
         break;
       case DownloadStatus.cancelled:
         color = Colors.grey;
-        label = '已取消';
+        label = loc.cancelledTask;
         break;
     }
 

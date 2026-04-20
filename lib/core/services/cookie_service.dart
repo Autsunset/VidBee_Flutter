@@ -1,5 +1,6 @@
 // Cookie 管理服务
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 class CookieService {
   static final CookieService _instance = CookieService._internal();
@@ -94,4 +95,159 @@ class CookieService {
     
     return false;
   }
+
+  /// 检测已安装的浏览器
+  Future<List<String>> detectBrowsers() async {
+    final browsers = <String>[];
+    
+    if (Platform.isAndroid) {
+      // 检查常见浏览器包名
+      final browserPackages = [
+        'com.android.chrome',
+        'org.mozilla.firefox',
+        'com.microsoft.emmx',
+        'com.opera.browser',
+        'com.uc.browser.en',
+        'com.vivaldi.browser',
+        'com.yandex.browser',
+      ];
+      
+      for (final package in browserPackages) {
+        try {
+          final result = await Process.run('pm', ['list', 'packages', package]);
+          if (result.stdout.toString().contains(package)) {
+            browsers.add(_getBrowserName(package));
+          }
+        } catch (e) {
+          print('检查浏览器 $package 失败: $e');
+        }
+      }
+    } else if (Platform.isWindows) {
+      // Windows 下检查常见浏览器
+      final browserPaths = [
+        r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+        r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+        r'C:\Program Files\Mozilla Firefox\firefox.exe',
+        r'C:\Program Files (x86)\Mozilla Firefox\firefox.exe',
+        r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+      ];
+      
+      for (final path in browserPaths) {
+        if (File(path).existsSync()) {
+          browsers.add(_getWindowsBrowserName(path));
+        }
+      }
+    }
+    
+    return browsers;
+  }
+
+  /// 从浏览器提取 Cookie
+  Future<Map<String, String>?> extractCookiesFromBrowser(String browserName) async {
+    try {
+      if (Platform.isAndroid) {
+        // Android 下的 Cookie 提取
+        // 注意：这需要 root 权限或者特殊的访问权限
+        // 这里只是示例，实际实现需要更复杂的逻辑
+        print('从 $browserName 提取 Cookie (Android)');
+        // 实际实现需要访问浏览器的 Cookie 数据库
+      } else if (Platform.isWindows) {
+        // Windows 下的 Cookie 提取
+        print('从 $browserName 提取 Cookie (Windows)');
+        // 实际实现需要读取浏览器的 Cookie 文件
+      }
+      return null;
+    } catch (e) {
+      print('提取 Cookie 失败: $e');
+      return null;
+    }
+  }
+
+  /// 导出 Cookie 到文件
+  Future<String?> exportCookies(String filePath) async {
+    try {
+      final cookies = await getAllCookies();
+      final file = File(filePath);
+      await file.writeAsString(_serializeCookies(cookies));
+      return filePath;
+    } catch (e) {
+      print('导出 Cookie 失败: $e');
+      return null;
+    }
+  }
+
+  /// 从文件导入 Cookie
+  Future<bool> importCookies(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        return false;
+      }
+      
+      final content = await file.readAsString();
+      final cookies = _deserializeCookies(content);
+      
+      for (final entry in cookies.entries) {
+        await saveCookie(entry.key, entry.value);
+      }
+      
+      return true;
+    } catch (e) {
+      print('导入 Cookie 失败: $e');
+      return false;
+    }
+  }
+
+  /// 序列化 Cookie
+  String _serializeCookies(Map<String, String> cookies) {
+    final buffer = StringBuffer();
+    for (final entry in cookies.entries) {
+      buffer.writeln('${entry.key}:${entry.value}');
+    }
+    return buffer.toString();
+  }
+
+  /// 反序列化 Cookie
+  Map<String, String> _deserializeCookies(String content) {
+    final cookies = <String, String>{};
+    final lines = content.split('\n');
+    for (final line in lines) {
+      if (line.isNotEmpty) {
+        final parts = line.split(':');
+        if (parts.length >= 2) {
+          final key = parts[0];
+          final value = parts.sublist(1).join(':');
+          cookies[key] = value;
+        }
+      }
+    }
+    return cookies;
+  }
+
+  /// 获取浏览器名称
+  String _getBrowserName(String packageName) {
+    final browserMap = {
+      'com.android.chrome': 'Chrome',
+      'org.mozilla.firefox': 'Firefox',
+      'com.microsoft.emmx': 'Edge',
+      'com.opera.browser': 'Opera',
+      'com.uc.browser.en': 'UC Browser',
+      'com.vivaldi.browser': 'Vivaldi',
+      'com.yandex.browser': 'Yandex Browser',
+    };
+    return browserMap[packageName] ?? packageName;
+  }
+
+  /// 获取 Windows 浏览器名称
+  String _getWindowsBrowserName(String path) {
+    if (path.contains('chrome')) {
+      return 'Chrome';
+    } else if (path.contains('firefox')) {
+      return 'Firefox';
+    } else if (path.contains('edge')) {
+      return 'Edge';
+    }
+    return 'Unknown';
+  }
 }
+

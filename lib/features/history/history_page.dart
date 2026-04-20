@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/download_task.dart';
 import '../../core/services/history_service.dart';
+import '../../shared/i18n/app_localizations.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -38,8 +39,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+
     if (_history.isEmpty) {
-      return _buildEmptyState(context);
+      return _buildEmptyState(context, loc);
     }
 
     return Column(
@@ -51,9 +54,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton.icon(
-                  onPressed: () => _showClearDialog(context),
+                  onPressed: () => _showClearDialog(context, loc),
                   icon: const Icon(Icons.delete_outline),
-                  label: const Text('清空历史'),
+                  label: Text(loc.clearHistory),
                 ),
               ],
             ),
@@ -66,6 +69,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               task: _history[index],
               onDelete: () => _deleteTask(_history[index].id),
               onTap: () => _showTaskDetails(context, _history[index]),
+              loc: loc,
             ),
           ),
         ),
@@ -73,7 +77,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, AppLocalizations loc) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -85,7 +89,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            '暂无历史记录',
+            loc.noHistory,
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
@@ -100,16 +104,16 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     }
   }
 
-  Future<void> _showClearDialog(BuildContext context) async {
+  Future<void> _showClearDialog(BuildContext context, AppLocalizations loc) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清空历史记录'),
-        content: const Text('确定要清空所有历史记录吗？此操作不可撤销。'),
+        title: Text(loc.clearHistory),
+        content: Text(loc.confirmClearHistory),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -117,7 +121,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               backgroundColor: Theme.of(context).colorScheme.error,
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
-            child: const Text('清空'),
+            child: Text(loc.clearAll),
           ),
         ],
       ),
@@ -132,9 +136,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   }
 
   void _showTaskDetails(BuildContext context, DownloadTask task) {
+    final loc = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
-      builder: (context) => TaskDetailsBottomSheet(task: task),
+      builder: (context) => TaskDetailsBottomSheet(task: task, loc: loc),
     );
   }
 }
@@ -143,12 +148,14 @@ class HistoryTaskCard extends StatelessWidget {
   final DownloadTask task;
   final VoidCallback onDelete;
   final VoidCallback onTap;
+  final AppLocalizations loc;
 
   const HistoryTaskCard({
     super.key,
     required this.task,
     required this.onDelete,
     required this.onTap,
+    required this.loc,
   });
 
   @override
@@ -188,7 +195,7 @@ class HistoryTaskCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      task.title ?? '未知标题',
+                      task.title ?? loc.unknownTitle,
                       style: Theme.of(context).textTheme.titleSmall,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -199,8 +206,8 @@ class HistoryTaskCard extends StatelessWidget {
                         _buildStatusChip(context),
                         const SizedBox(width: 8),
                         if (task.type == DownloadType.audio)
-                          const Chip(
-                            label: Text('音频'),
+                          Chip(
+                            label: Text(loc.audio),
                             padding: EdgeInsets.zero,
                             visualDensity: VisualDensity.compact,
                           ),
@@ -228,19 +235,19 @@ class HistoryTaskCard extends StatelessWidget {
     switch (task.status) {
       case DownloadStatus.completed:
         color = Colors.green;
-        label = '已完成';
+        label = loc.completedTask;
         break;
       case DownloadStatus.error:
         color = Colors.red;
-        label = '失败';
+        label = loc.failedTask;
         break;
       case DownloadStatus.cancelled:
         color = Colors.grey;
-        label = '已取消';
+        label = loc.cancelledTask;
         break;
       default:
         color = Colors.grey;
-        label = '未知';
+        label = loc.unknown;
     }
 
     return Chip(
@@ -255,8 +262,9 @@ class HistoryTaskCard extends StatelessWidget {
 
 class TaskDetailsBottomSheet extends StatelessWidget {
   final DownloadTask task;
+  final AppLocalizations loc;
 
-  const TaskDetailsBottomSheet({super.key, required this.task});
+  const TaskDetailsBottomSheet({super.key, required this.task, required this.loc});
 
   @override
   Widget build(BuildContext context) {
@@ -267,13 +275,13 @@ class TaskDetailsBottomSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '任务详情',
+            loc.taskDetails,
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 16),
           if (task.title != null) ...[
             Text(
-              '标题',
+              loc.titleField,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -283,7 +291,7 @@ class TaskDetailsBottomSheet extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           Text(
-            'URL',
+            loc.urlField,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -298,13 +306,13 @@ class TaskDetailsBottomSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '类型',
+                      loc.typeField,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                     const SizedBox(height: 4),
-                    Text(task.type == DownloadType.video ? '视频' : '音频'),
+                    Text(task.type == DownloadType.video ? loc.video : loc.audio),
                   ],
                 ),
               ),
@@ -313,13 +321,13 @@ class TaskDetailsBottomSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '状态',
+                      loc.statusField,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                     const SizedBox(height: 4),
-                    Text(_getStatusText(task.status)),
+                    Text(_getStatusText(task.status, loc)),
                   ],
                 ),
               ),
@@ -328,23 +336,23 @@ class TaskDetailsBottomSheet extends StatelessWidget {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
+            child: Text(loc.close),
           ),
         ],
       ),
     );
   }
 
-  String _getStatusText(DownloadStatus status) {
+  String _getStatusText(DownloadStatus status, AppLocalizations loc) {
     switch (status) {
       case DownloadStatus.completed:
-        return '已完成';
+        return loc.completedTask;
       case DownloadStatus.error:
-        return '失败';
+        return loc.failedTask;
       case DownloadStatus.cancelled:
-        return '已取消';
+        return loc.cancelledTask;
       default:
-        return '未知';
+        return loc.unknown;
     }
   }
 }

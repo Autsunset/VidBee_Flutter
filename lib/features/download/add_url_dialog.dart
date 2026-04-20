@@ -1,10 +1,12 @@
 // 添加 URL 对话框
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/providers.dart';
 import '../../core/models/models.dart';
 import '../../core/services/cookie_service.dart';
 import '../../core/utils/permission_helper.dart';
+import '../../shared/i18n/app_localizations.dart';
 
 class AddUrlDialog extends ConsumerStatefulWidget {
   const AddUrlDialog({super.key});
@@ -29,9 +31,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     final isLoading = ref.watch(isLoadingVideoInfoProvider);
     final videoInfo = ref.watch(currentVideoInfoProvider);
     final selectedFormat = ref.watch(selectedFormatProvider);
+    final loc = AppLocalizations.of(context)!;
 
     return AlertDialog(
-      title: const Text('添加视频 URL'),
+      title: Text(loc.addUrl),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 400),
         child: SingleChildScrollView(
@@ -41,10 +44,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
             children: [
               TextField(
                 controller: _urlController,
-                decoration: const InputDecoration(
-                  hintText: '粘贴视频链接...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.link_outlined),
+                decoration: InputDecoration(
+                  hintText: loc.pasteUrl,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.link_outlined),
                 ),
                 autofocus: true,
                 maxLines: null,
@@ -52,7 +55,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
               ),
               const SizedBox(height: 16),
               SwitchListTile(
-                title: const Text('仅下载音频'),
+                title: Text(loc.audioOnly),
                 value: _isAudioOnly,
                 onChanged: isLoading
                     ? null
@@ -64,12 +67,12 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
               ),
               if (isLoading) ...[
                 const SizedBox(height: 16),
-                const Center(
+                Center(
                   child: Column(
                     children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 8),
-                      Text('正在解析视频信息...'),
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 8),
+                      Text(loc.parsingVideo),
                     ],
                   ),
                 ),
@@ -89,7 +92,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       actions: [
         TextButton(
           onPressed: isLoading ? null : () => _resetAndClose(),
-          child: const Text('取消'),
+          child: Text(loc.cancel),
         ),
         if (videoInfo == null)
           FilledButton(
@@ -100,12 +103,12 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('解析'),
+                : Text(loc.parse),
           )
         else
           FilledButton(
             onPressed: isLoading ? null : () => _startDownload(videoInfo, selectedFormat),
-            child: const Text('开始下载'),
+            child: Text(loc.download),
           ),
       ],
     );
@@ -167,7 +170,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     final formats = _isAudioOnly ? videoInfo.bestAudioFormats : videoInfo.bestVideoFormats;
 
     if (formats.isEmpty) {
-      return const Text('没有可用的格式');
+      return Text(AppLocalizations.of(context)!.noAvailableFormat);
     }
 
     final url = _normalizeUrl(_urlController.text.trim());
@@ -177,7 +180,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _isAudioOnly ? '选择音频质量' : '选择视频质量',
+          _isAudioOnly ? AppLocalizations.of(context)!.selectAudioQuality : AppLocalizations.of(context)!.selectVideoQuality,
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
@@ -235,7 +238,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
               return Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  '🔒 高清晰度需要登录，请在设置中添加 Cookie',
+                  AppLocalizations.of(context)!.highQualityRequiresLogin,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -311,7 +314,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     ref.read(selectedFormatProvider.notifier).state = null;
 
     final ytDlpService = ref.read(ytDlpServiceProvider);
-    final videoInfo = await ytDlpService.getVideoInfo(url);
+    // 获取自定义UA
+    final prefs = await SharedPreferences.getInstance();
+    final customUA = prefs.getString('custom_ua') ?? '';
+    final videoInfo = await ytDlpService.getVideoInfo(url, customUA: customUA);
 
     if (mounted) {
       ref.read(isLoadingVideoInfoProvider.notifier).state = false;
@@ -327,18 +333,19 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         if (mounted) {
           final domain = _cookieService.extractDomain(url);
           final hasCookie = await _cookieService.hasCookie(domain);
+          final loc = AppLocalizations.of(context)!;
           
           String errorMessage;
           if (domain.contains('douyin.com') || domain.contains('youtube.com')) {
             if (hasCookie) {
-              errorMessage = '解析失败！\n\n您的 Cookies 可能已过期，请尝试在设置中重新添加 Cookies。';
+              errorMessage = loc.parseFailedExpired;
             } else {
-              errorMessage = '解析失败！\n\n该网站需要新鲜的 Cookies 才能解析，请在设置中添加 Cookies。';
+              errorMessage = loc.parseFailedFresh;
             }
           } else if (domain.contains('bilibili.com')) {
-            errorMessage = '解析失败！\n\n请检查网络连接或视频链接是否正确。Bilibili 的低清晰度视频无需 Cookies 也可解析。';
+            errorMessage = loc.parseFailedBilibili;
           } else {
-            errorMessage = '解析失败！\n\n请检查网络连接或视频链接是否正确。某些网站可能需要 Cookies，请在设置中添加后重试。';
+            errorMessage = loc.parseFailedDefault;
           }
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -429,11 +436,12 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     // 先检查是否有管理存储权限
     final hasPermission = await PermissionHelper.checkManageExternalStoragePermission();
     if (!hasPermission && mounted) {
+      final loc = AppLocalizations.of(context)!;
       // 如果没有权限，提示用户去设置
       await PermissionHelper.showPermissionDialog(
         context,
-        title: '需要存储权限',
-        message: '为了能保存视频到公共存储目录，需要授予"管理所有文件"权限。请在设置中开启此权限。',
+        title: loc.needStoragePermission,
+        message: loc.storagePermissionMessage,
         onGranted: () async {
           await PermissionHelper.openManageExternalStorageSettings();
         },

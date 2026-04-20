@@ -2,7 +2,7 @@ name: vidbee_flutter
 description: "VidBee - 从全球几乎任何网站下载视频的 Android 应用"
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.11.4

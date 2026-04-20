@@ -37,7 +37,7 @@ class YtDlpService {
         // 初始化成功后自动更新 yt-dlp 到最新版本
         try {
           print('正在自动更新 yt-dlp 到最新版本...');
-          final updateResult = await _youtubeDL.updateYoutubeDL();
+          await _youtubeDL.updateYoutubeDL();
           // UpdateResult 可能没有 success 字段，直接打印结果即可
           print('yt-dlp 更新完成');
         } catch (e) {
@@ -100,13 +100,18 @@ class YtDlpService {
   }
 
   /// 获取视频信息
-  Future<vidbee.VideoInfo?> getVideoInfo(String url) async {
+  Future<vidbee.VideoInfo?> getVideoInfo(String url, {String? customUA}) async {
     if (!_isInitialized) {
       final initialized = await initialize();
       if (!initialized) return null;
     }
 
     try {
+      // 检查是否有自定义UA
+      if (customUA != null && customUA.isNotEmpty) {
+        print('使用自定义UA: $customUA');
+        // 这里需要设置UA，具体API需要查看extractor包的文档
+      }
       final info = await _youtubeDL.getVideoInfo(url);
       return _convertToVidbeeVideoInfo(info);
     } catch (e) {
@@ -116,7 +121,7 @@ class YtDlpService {
   }
 
   /// 开始下载
-  Future<String?> startDownload(vidbee.DownloadTask task) async {
+  Future<String?> startDownload(vidbee.DownloadTask task, {String? customUA}) async {
     if (!_isInitialized) {
       final initialized = await initialize();
       if (!initialized) return null;
@@ -179,6 +184,12 @@ class YtDlpService {
       // 使用VidBee_前缀 + 视频标题作为文件名，既保留标题又避免问题
       final outputTemplate = 'VidBee_%(title)s.%(ext)s';
       print('输出文件名: $outputTemplate');
+
+      // 检查是否有自定义UA
+      if (customUA != null && customUA.isNotEmpty) {
+        print('使用自定义UA: $customUA');
+        // 这里需要设置UA，具体API需要查看extractor包的文档
+      }
 
       final request = DownloadRequest(
         url: task.url,

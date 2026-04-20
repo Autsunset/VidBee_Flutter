@@ -3,7 +3,6 @@
 // 用于显示下载进度的通知显示
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../models/download_task.dart';
 
 /// 通知服务类
 class NotificationService {

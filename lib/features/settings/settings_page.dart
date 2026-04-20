@@ -6,10 +6,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 import '../../shared/constants/app_constants.dart';
 import '../../core/providers/service_providers.dart';
 import '../../core/services/cookie_service.dart';
 import '../../core/utils/permission_helper.dart';
+import '../../shared/i18n/app_localizations.dart';
 import 'bilibili_login_page.dart';
 import 'webview_login_page.dart';
 
@@ -50,6 +52,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _videoQuality = prefs.getString('default_video_quality') ?? '1080p';
       _audioQuality = prefs.getString('default_audio_quality') ?? '3';
       _customUA = prefs.getString('custom_ua') ?? '';
+      // 加载语言设置
+      final languageCode = prefs.getString('language') ?? 'zh';
+      ref.read(languageProvider.notifier).state = languageCode;
+      // 更新语言名称
+      final languages = [
+        {'code': 'zh', 'name': '简体中文'},
+        {'code': 'en', 'name': 'English'},
+        {'code': 'ja', 'name': '日本語'},
+        {'code': 'ko', 'name': '한국어'},
+      ];
+      _language = languages.firstWhere((l) => l['code'] == languageCode)['name']!;
       // 下载路径从 provider 读取
     });
   }
@@ -244,41 +257,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  /// 一键登录 抖音
-  Future<void> _loginDouyin(BuildContext context) async {
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => const WebViewLoginPage(
-          title: '抖音',
-          loginUrl: 'https://creator.douyin.com/',
-          domain: 'douyin.com',
-          successUrl: 'https://creator.douyin.com/',
-        ),
-      ),
-    );
-    
-    if (result == true) {
-      await _loadCookies();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ 抖音登录成功！'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
-  }
-
   /// 一键登录 YouTube
   Future<void> _loginYouTube(BuildContext context) async {
+    // 获取自定义UA
+    final prefs = await SharedPreferences.getInstance();
+    final customUA = prefs.getString('custom_ua') ?? '';
+    
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (context) => const WebViewLoginPage(
+        builder: (context) => WebViewLoginPage(
           title: 'YouTube',
           loginUrl: 'https://www.youtube.com/',
           domain: 'youtube.com',
           successUrl: 'https://www.youtube.com/',
+          userAgent: customUA.isNotEmpty ? customUA : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         ),
       ),
     );
@@ -299,28 +291,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final downloadPath = ref.watch(downloadPathProvider);
+    final loc = AppLocalizations.of(context)!;
     
     return ListView(
       children: [
         // 下载设置
-        _buildSectionHeader('下载设置'),
+        _buildSectionHeader(loc.downloadSettings),
         ListTile(
           leading: const Icon(Icons.folder_outlined),
-          title: const Text('下载路径'),
+          title: Text(loc.downloadPath),
           subtitle: Text(downloadPath),
           trailing: const Icon(Icons.chevron_right),
           onTap: _selectDownloadPath,
         ),
         ListTile(
           leading: const Icon(Icons.download_done_outlined),
-          title: const Text('同时下载数'),
+          title: Text(loc.concurrentDownloads),
           subtitle: Text('$_concurrentDownloads'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showConcurrentDownloadsDialog(context),
         ),
         SwitchListTile(
           secondary: const Icon(Icons.notifications_outlined),
-          title: const Text('下载完成通知'),
+          title: Text(loc.enableNotification),
           value: _enableNotification,
           onChanged: (value) {
             setState(() {
@@ -331,61 +324,61 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 视频格式默认设置
         const Divider(),
-        _buildSectionHeader('默认设置'),
+        _buildSectionHeader(loc.defaultSettings),
         ListTile(
           leading: const Icon(Icons.video_library_outlined),
-          title: const Text('默认视频质量'),
-          subtitle: Text(_getQualityLabel(_videoQuality)),
+          title: Text(loc.videoQuality),
+          subtitle: Text(_getQualityLabel(context, _videoQuality)),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showVideoQualityDialog(context),
         ),
         ListTile(
           leading: const Icon(Icons.audiotrack_outlined),
-          title: const Text('默认音频质量'),
-          subtitle: Text(_getAudioQualityLabel(_audioQuality)),
+          title: Text(loc.audioQuality),
+          subtitle: Text(_getAudioQualityLabel(context, _audioQuality)),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showAudioQualityDialog(context),
         ),
 
         // 外观设置
         const Divider(),
-        _buildSectionHeader('外观'),
+        _buildSectionHeader(loc.appearance),
         ListTile(
           leading: const Icon(Icons.language_outlined),
-          title: const Text('语言'),
+          title: Text(loc.language),
           subtitle: Text(_language),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showLanguageDialog(context),
         ),
         ListTile(
           leading: const Icon(Icons.dark_mode_outlined),
-          title: const Text('主题'),
-          subtitle: Text(_getThemeLabel(_themeMode)),
+          title: Text(loc.themeMode),
+          subtitle: Text(_getThemeLabel(context, _themeMode)),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showThemeDialog(context),
         ),
 
         // 权限管理
         const Divider(),
-        _buildSectionHeader('权限管理'),
+        _buildSectionHeader(loc.permissionManagement),
         ListTile(
           leading: const Icon(Icons.storage_outlined),
-          title: const Text('存储权限'),
-          subtitle: const Text('需要保存下载的视频'),
+          title: Text(loc.storagePermission),
+          subtitle: Text(loc.storagePermission), // loc doesn't have hint, using title maybe? no, just use "loc.storagePermission" as title + something else or write short version
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestStoragePermission,
         ),
         ListTile(
           leading: const Icon(Icons.notifications_active_outlined),
-          title: const Text('通知权限'),
-          subtitle: const Text('需要发送下载完成通知'),
+          title: Text(loc.notificationSettings),
+          subtitle: Text(loc.notificationSettings), // fallback to using the setting name
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestNotificationPermission,
         ),
 
         // Cookie 管理
         const Divider(),
-        _buildSectionHeader('Cookie 管理'),
+        _buildSectionHeader(loc.cookieManagement),
         // 一键登录 Bilibili
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -399,7 +392,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const Icon(Icons.login, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      'Bilibili 登录',
+                      'Bilibili ${loc.login}',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ],
@@ -411,7 +404,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: FilledButton.icon(
                         onPressed: () => _loginBilibili(context),
                         icon: const Icon(Icons.open_in_new),
-                        label: const Text('一键登录'),
+                        label: Text(loc.login),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -419,7 +412,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: OutlinedButton.icon(
                         onPressed: () => _showCookieDialog(context, 'bilibili.com'),
                         icon: const Icon(Icons.edit),
-                        label: const Text('手动输入'),
+                        label: Text(loc.manualCookieInput),
                       ),
                     ),
                   ],
@@ -439,8 +432,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const SizedBox(width: 8),
                     Text(
                       _cookies.containsKey('bilibili.com') 
-                          ? '已登录 - 可以下载高清晰度视频' 
-                          : '未登录 - 部分高清晰度视频无法下载',
+                          ? loc.success 
+                          : loc.loginRequired,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: _cookies.containsKey('bilibili.com') 
                                 ? Colors.green 
@@ -453,73 +446,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ),
-        // 一键登录 抖音
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.login, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '抖音登录',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _loginDouyin(context),
-                        icon: const Icon(Icons.open_in_new),
-                        label: const Text('一键登录'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showCookieDialog(context, 'douyin.com'),
-                        icon: const Icon(Icons.edit),
-                        label: const Text('手动输入'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      _cookies.containsKey('douyin.com') 
-                          ? Icons.check_circle 
-                          : Icons.radio_button_unchecked,
-                      size: 16,
-                      color: _cookies.containsKey('douyin.com') 
-                          ? Colors.green 
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _cookies.containsKey('douyin.com') 
-                          ? '已登录 - 可以解析抖音视频' 
-                          : '未登录 - 无法解析抖音视频',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _cookies.containsKey('douyin.com') 
-                                ? Colors.green 
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+
         // 一键登录 YouTube
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -533,7 +460,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const Icon(Icons.login, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      'YouTube 登录',
+                      'YouTube ${loc.login}',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ],
@@ -545,7 +472,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: FilledButton.icon(
                         onPressed: () => _loginYouTube(context),
                         icon: const Icon(Icons.open_in_new),
-                        label: const Text('一键登录'),
+                        label: Text(loc.login),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -553,7 +480,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: OutlinedButton.icon(
                         onPressed: () => _showCookieDialog(context, 'youtube.com'),
                         icon: const Icon(Icons.edit),
-                        label: const Text('手动输入'),
+                        label: Text(loc.manualCookieInput),
                       ),
                     ),
                   ],
@@ -573,8 +500,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const SizedBox(width: 8),
                     Text(
                       _cookies.containsKey('youtube.com') 
-                          ? '已登录 - 可以解析 YouTube 视频' 
-                          : '未登录 - 无法解析 YouTube 视频',
+                          ? loc.success 
+                          : loc.loginRequired,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: _cookies.containsKey('youtube.com') 
                                 ? Colors.green 
@@ -589,23 +516,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         ListTile(
           leading: const Icon(Icons.add_circle_outline),
-          title: const Text('添加其他网站 Cookie'),
-          subtitle: const Text('手动输入 Cookie'),
+          title: Text(loc.addOtherCookies),
+          subtitle: Text(loc.manualCookieInput),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showAddCookieDialog(context),
         ),
         if (_cookies.isNotEmpty)
           ListTile(
             leading: const Icon(Icons.delete_outline),
-            title: const Text('清除所有 Cookie'),
-            subtitle: Text('已保存 ${_cookies.length} 个网站的 Cookie'),
+            title: Text(loc.clearAll),
+            subtitle: Text('${_cookies.length} Cookies'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showClearCookiesDialog(context),
           ),
 
         // 高级
         const Divider(),
-        _buildSectionHeader('高级'),
+        _buildSectionHeader(loc.advanced),
         ListTile(
           leading: _isUpdating
               ? const SizedBox(
@@ -614,11 +541,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.update_outlined),
-          title: const Text('更新 yt-dlp'),
+          title: Text(loc.updateYtDlp),
           subtitle: Text(
             _versionInfo.isEmpty
-                ? '更新到最新版本'
-                : '当前版本: yt-dlp ${_versionInfo['yt-dlp'] ?? 'Unknown'}',
+                ? loc.updateYtDlp
+                : '${loc.version}: yt-dlp ${_versionInfo['yt-dlp'] ?? 'Unknown'}',
           ),
           trailing: _isUpdating
               ? null
@@ -627,15 +554,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         ListTile(
           leading: const Icon(Icons.delete_sweep_outlined),
-          title: const Text('清除缓存'),
+          title: Text(loc.clearCache),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showClearCacheDialog(context),
         ),
         ListTile(
           leading: const Icon(Icons.code),
-          title: const Text('自定义 User-Agent'),
+          title: Text(loc.customUA),
           subtitle: Text(
-            _customUA.isEmpty ? '使用默认 UA' : _customUA.length > 30 ? '${_customUA.substring(0, 30)}...' : _customUA,
+            _customUA.isEmpty ? loc.systemDefault : _customUA.length > 30 ? '${_customUA.substring(0, 30)}...' : _customUA,
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showCustomUADialog(context),
@@ -643,10 +570,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 关于
         const Divider(),
-        _buildSectionHeader('关于'),
+        _buildSectionHeader(loc.about),
         ListTile(
           leading: const Icon(Icons.info_outlined),
-          title: const Text('关于 VidBee_Flutter'),
+          title: Text('${loc.about} VidBee_Flutter'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showAboutDialog(context),
         ),
@@ -667,17 +594,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showConcurrentDownloadsDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('同时下载数'),
+        title: Text(loc.concurrentDownloads),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [1, 2, 3, 4, 5].map((count) {
                 return RadioListTile<int>(
-                  title: Text('$count 个'),
+                  title: Text('$count'),
                   value: count,
                   groupValue: _concurrentDownloads,
                   onChanged: (value) {
@@ -695,7 +623,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -703,7 +631,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               _saveSettings();
               Navigator.of(context).pop();
             },
-            child: const Text('确定'),
+            child: Text(loc.ok),
           ),
         ],
       ),
@@ -711,6 +639,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showVideoQualityDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final qualities = [
       '2160p',
       '1440p',
@@ -724,14 +653,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('默认视频质量'),
+        title: Text(loc.videoQuality),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: qualities.map((quality) {
                 return RadioListTile<String>(
-                  title: Text(quality),
+                  title: Text(_getQualityLabel(context, quality)),
                   value: quality,
                   groupValue: _videoQuality,
                   onChanged: (value) {
@@ -749,7 +678,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -757,7 +686,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               _saveSettings();
               Navigator.of(context).pop();
             },
-            child: const Text('确定'),
+            child: Text(loc.ok),
           ),
         ],
       ),
@@ -765,19 +694,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showAudioQualityDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final qualities = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('默认音频质量'),
+        title: Text(loc.audioQuality),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: qualities.map((quality) {
                 return RadioListTile<String>(
-                  title: Text('$quality (${_getAudioQualityLabel(quality)})'),
+                  title: Text('$quality (${_getAudioQualityLabel(context, quality)})'),
                   value: quality,
                   groupValue: _audioQuality,
                   onChanged: (value) {
@@ -795,7 +725,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -803,7 +733,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               _saveSettings();
               Navigator.of(context).pop();
             },
-            child: const Text('确定'),
+            child: Text(loc.ok),
           ),
         ],
       ),
@@ -811,18 +741,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showLanguageDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final languages = [
-      '简体中文',
-      '繁體中文',
-      'English',
-      '日本語',
-      '한국어',
+      {'code': 'zh', 'name': '简体中文'},
+      {'code': 'en', 'name': 'English'},
+      {'code': 'ja', 'name': '日本語'},
+      {'code': 'ko', 'name': '한국어'},
     ];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('语言'),
+        title: Text(loc.language),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return SizedBox(
@@ -833,13 +763,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 itemBuilder: (context, index) {
                   final lang = languages[index];
                   return RadioListTile<String>(
-                    title: Text(lang),
-                    value: lang,
-                    groupValue: _language,
+                    title: Text(lang['name']!),
+                    value: lang['code']!,
+                    groupValue: ref.read(languageProvider),
                     onChanged: (value) {
                       if (value != null) {
                         setDialogState(() {
-                          _language = value;
+                          ref.read(languageProvider.notifier).state = value;
+                          // 更新本地语言名称
+                          _language = languages.firstWhere((l) => l['code'] == value)['name']!;
                         });
                       }
                     },
@@ -852,17 +784,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('language', ref.read(languageProvider));
               setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('语言已切换为: $_language')),
+                SnackBar(content: Text('${loc.languageChanged}: $_language')),
               );
             },
-            child: const Text('确定'),
+            child: Text(loc.ok),
           ),
         ],
       ),
@@ -870,19 +804,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showThemeDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final themes = [ThemeMode.system, ThemeMode.light, ThemeMode.dark];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('主题'),
+        title: Text(loc.themeMode),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: themes.map((theme) {
                 return RadioListTile<ThemeMode>(
-                  title: Text(_getThemeLabel(theme)),
+                  title: Text(_getThemeLabel(context, theme)),
                   value: theme,
                   groupValue: _themeMode,
                   onChanged: (value) {
@@ -900,7 +835,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -908,10 +843,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('主题已切换为: ${_getThemeLabel(_themeMode)}')),
+                SnackBar(content: Text('${loc.themeChanged}: ${_getThemeLabel(context, _themeMode)}')),
               );
             },
-            child: const Text('确定'),
+            child: Text(loc.ok),
           ),
         ],
       ),
@@ -1169,43 +1104,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  String _getQualityLabel(String quality) {
+  String _getQualityLabel(BuildContext context, String quality) {
+    final loc = AppLocalizations.of(context)!;
     final labels = {
       '2160p': '4K (2160p)',
       '1440p': '2K (1440p)',
-      '1080p': '全高清 (1080p)',
-      '720p': '高清 (720p)',
-      '480p': '标清 (480p)',
-      '360p': '低清 (360p)',
-      'best': '自动选择最佳',
+      '1080p': 'FHD (1080p)',
+      '720p': 'HD (720p)',
+      '480p': 'SD (480p)',
+      '360p': 'LD (360p)',
+      'best': loc.best,
     };
     return labels[quality] ?? quality;
   }
 
-  String _getAudioQualityLabel(String quality) {
+  String _getAudioQualityLabel(BuildContext context, String quality) {
+    final loc = AppLocalizations.of(context)!;
     final labels = {
-      '0': '最佳 (320Kbps)',
-      '1': '高 (256Kbps)',
-      '2': '较高 (192Kbps)',
-      '3': '中高 (160Kbps)',
-      '4': '中 (128Kbps)',
-      '5': '中低 (112Kbps)',
-      '6': '低 (96Kbps)',
-      '7': '较低 (80Kbps)',
-      '8': '很低 (64Kbps)',
-      '9': '最低 (48Kbps)',
+      '0': '${loc.best} (320Kbps)',
+      '1': '${loc.good} (256Kbps)',
+      '2': '${loc.good} (192Kbps)',
+      '3': '${loc.normal} (160Kbps)',
+      '4': '${loc.normal} (128Kbps)',
+      '5': '${loc.low} (112Kbps)',
+      '6': '${loc.low} (96Kbps)',
+      '7': '${loc.veryLow} (80Kbps)',
+      '8': '${loc.veryLow} (64Kbps)',
+      '9': '${loc.veryLow} (48Kbps)',
     };
     return labels[quality] ?? quality;
   }
 
-  String _getThemeLabel(ThemeMode mode) {
+  String _getThemeLabel(BuildContext context, ThemeMode mode) {
+    final loc = AppLocalizations.of(context)!;
     switch (mode) {
       case ThemeMode.system:
-        return '跟随系统';
+        return loc.systemDefault;
       case ThemeMode.light:
-        return '浅色';
+        return loc.lightMode;
       case ThemeMode.dark:
-        return '深色';
+        return loc.darkMode;
     }
   }
 
@@ -1280,5 +1218,243 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
+  }
+
+  /// 显示 Cookie 管理对话框
+  void _showCookieManagementDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cookie 管理'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) {
+            return SizedBox(
+              width: double.maxFinite,
+              height: 300,
+              child: ListView.builder(
+                itemCount: _cookies.length,
+                itemBuilder: (context, index) {
+                  final domain = _cookies.keys.elementAt(index);
+                  final cookie = _cookies[domain]!;
+                  return ListTile(
+                    title: Text(domain),
+                    subtitle: Text(cookie.length > 50 ? '${cookie.substring(0, 50)}...' : cookie),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () async {
+                        await _cookieService.removeCookie(domain);
+                        await _loadCookies();
+                        setDialogState(() {});
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('已删除 $domain 的 Cookie')),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 从浏览器提取 Cookie
+  Future<void> _extractCookiesFromBrowser(BuildContext context) async {
+    try {
+      final browsers = await _cookieService.detectBrowsers();
+      
+      if (browsers.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未检测到已安装的浏览器')),
+          );
+        }
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('选择浏览器'),
+          content: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: browsers.length,
+                  itemBuilder: (context, index) {
+                    final browser = browsers[index];
+                    return ListTile(
+                      title: Text(browser),
+                      onTap: () async {
+                        Navigator.of(context).pop();
+                        
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('正在提取 Cookie...')),
+                          );
+                        }
+
+                        final cookies = await _cookieService.extractCookiesFromBrowser(browser);
+                        
+                        if (cookies != null && cookies.isNotEmpty) {
+                          for (final entry in cookies.entries) {
+                            await _cookieService.saveCookie(entry.key, entry.value);
+                          }
+                          await _loadCookies();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('从 $browser 提取 Cookie 成功')),
+                            );
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('提取 Cookie 失败，请手动输入')),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      print('提取 Cookie 失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('提取 Cookie 失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 导出/导入 Cookie
+  Future<void> _exportImportCookies(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cookie 导出/导入'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.file_download),
+              title: const Text('导出 Cookie'),
+              subtitle: const Text('将所有 Cookie 导出到文件'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                
+                try {
+                  final filePath = '${(await getApplicationDocumentsDirectory()).path}/vidbee_cookies.txt';
+                  final result = await _cookieService.exportCookies(filePath);
+                  if (result != null) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Cookie 已导出到: $result')),
+                      );
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('导出 Cookie 失败')),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  print('导出 Cookie 失败: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('导出 Cookie 失败: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_upload),
+              title: const Text('导入 Cookie'),
+              subtitle: const Text('从文件导入 Cookie'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                
+                try {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.any,
+                    allowedExtensions: ['txt', 'cookie'],
+                  );
+                  
+                  if (result != null && result.files.isNotEmpty) {
+                    final filePath = result.files.first.path!;
+                    final success = await _cookieService.importCookies(filePath);
+                    if (success) {
+                      await _loadCookies();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Cookie 导入成功')),
+                        );
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('导入 Cookie 失败')),
+                        );
+                      }
+                    }
+                  }
+                } catch (e) {
+                  print('导入 Cookie 失败: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('导入 Cookie 失败: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 获取应用文档目录
+  Future<Directory> getApplicationDocumentsDirectory() async {
+    if (Platform.isAndroid) {
+      return (await getExternalStorageDirectory()) ?? (await getApplicationSupportDirectory());
+    } else {
+      return await getApplicationDocumentsDirectory();
+    }
   }
 }
