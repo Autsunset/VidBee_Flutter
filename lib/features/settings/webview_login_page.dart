@@ -61,11 +61,45 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             });
           },
           onWebResourceError: (WebResourceError error) {
-            print('WebView 加载错误: ${error.description}');
+            print('WebView 加载错误:');
+            print('  描述: ${error.description}');
+            print('  错误码: ${error.errorCode}');
+            print('  错误类型: ${error.errorType}');
+            print('  URL: ${error.url}');
+            
             if (mounted) {
               setState(() {
                 _isLoading = false;
-                _statusMessage = '加载失败: ${error.description}';
+                String errorMsg = '加载失败';
+                
+                // 根据错误码提供更详细的错误信息
+                switch (error.errorCode) {
+                  case -1:
+                    errorMsg = '未知错误';
+                    break;
+                  case -2:
+                    errorMsg = '服务器未响应，请检查网络连接';
+                    break;
+                  case -6:
+                    errorMsg = '连接被拒绝，服务器可能拒绝访问';
+                    break;
+                  case -7:
+                    errorMsg = '连接超时，请检查网络';
+                    break;
+                  case -8:
+                    errorMsg = '连接关闭';
+                    break;
+                  case -10:
+                    errorMsg = '无法解析服务器名称，请检查 DNS 设置';
+                    break;
+                  case -11:
+                    errorMsg = '无法连接到服务器';
+                    break;
+                  default:
+                    errorMsg = '加载失败: ${error.description}';
+                }
+                
+                _statusMessage = '$errorMsg (错误码: ${error.errorCode})';
               });
             }
           },
@@ -210,7 +244,9 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             padding: const EdgeInsets.all(12),
             color: _loginDetected
                 ? Colors.green.withOpacity(0.1)
-                : Theme.of(context).colorScheme.surfaceContainerHighest,
+                : _statusMessage.contains('失败')
+                    ? Colors.red.withOpacity(0.1)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Row(
               children: [
                 if (_isLoading)
@@ -221,9 +257,17 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                   )
                 else
                   Icon(
-                    _loginDetected ? Icons.check_circle : Icons.info_outline,
+                    _loginDetected
+                        ? Icons.check_circle
+                        : _statusMessage.contains('失败')
+                            ? Icons.error_outline
+                            : Icons.info_outline,
                     size: 16,
-                    color: _loginDetected ? Colors.green : null,
+                    color: _loginDetected
+                        ? Colors.green
+                        : _statusMessage.contains('失败')
+                            ? Colors.red
+                            : null,
                   ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -232,6 +276,19 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
+                // 错误时显示重试按钮
+                if (_statusMessage.contains('失败') || _statusMessage.contains('错误'))
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _statusMessage = '正在重新加载...';
+                      });
+                      _controller.reload();
+                    },
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('重试'),
+                  ),
               ],
             ),
           ),

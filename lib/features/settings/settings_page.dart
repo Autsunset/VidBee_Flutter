@@ -250,9 +250,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       MaterialPageRoute(
         builder: (context) => const WebViewLoginPage(
           title: '抖音',
-          loginUrl: 'https://www.douyin.com/',
+          loginUrl: 'https://creator.douyin.com/',
           domain: 'douyin.com',
-          successUrl: 'https://www.douyin.com/',
+          successUrl: 'https://creator.douyin.com/',
         ),
       ),
     );
