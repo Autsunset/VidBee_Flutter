@@ -9,6 +9,7 @@ import '../models/video_info.dart' as vidbee;
 import '../models/download_task.dart' as vidbee;
 import '../utils/event_bus.dart';
 import '../utils/media_scanner.dart';
+import 'cookie_service.dart';
 
 /// yt-dlp 服务类
 class YtDlpService {
@@ -188,7 +189,18 @@ class YtDlpService {
       // 检查是否有自定义UA
       if (customUA != null && customUA.isNotEmpty) {
         print('使用自定义UA: $customUA');
-        // 这里需要设置UA，具体API需要查看extractor包的文档
+      }
+
+      // 检查是否有 Cookie 文件
+      final cookieService = CookieService();
+      final cookieFilePath = await cookieService.getCookieFilePath();
+      Map<String?, String?>? customOptions;
+      if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
+        final cookieFile = File(cookieFilePath);
+        if (await cookieFile.exists()) {
+          customOptions = {'--cookies': cookieFilePath};
+          print('下载时使用 Cookie 文件: $cookieFilePath');
+        }
       }
 
       final request = DownloadRequest(
@@ -202,6 +214,7 @@ class YtDlpService {
         extractAudio: task.type == vidbee.DownloadType.audio,
         audioFormat: task.type == vidbee.DownloadType.audio ? 'mp3' : null,
         audioQuality: task.type == vidbee.DownloadType.audio ? 0 : null,
+        customOptions: customOptions,
       );
 
       final result = await _youtubeDL.download(request);

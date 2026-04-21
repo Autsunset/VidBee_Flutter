@@ -34,11 +34,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Map<String, String> _cookies = {};
   Map<String, String> _versionInfo = {};
   bool _isUpdating = false;
+  String? _cookieFilePath;
 
   @override
   void initState() {
     super.initState();
     _loadCookies();
+    _loadCookieFilePath();
     _themeMode = ref.read(themeModeProvider);
     _initializeDownloadPath();
     _loadVersionInfo();
@@ -159,6 +161,77 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       setState(() {
         _cookies = cookies;
       });
+    }
+  }
+
+  /// 加载已保存的 Cookie 文件路径
+  Future<void> _loadCookieFilePath() async {
+    final path = await _cookieService.getCookieFilePath();
+    if (mounted) {
+      setState(() {
+        _cookieFilePath = path;
+      });
+    }
+  }
+
+  /// 导入 Netscape 格式 Cookie 文件
+  Future<void> _importCookieFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['txt'],
+        dialogTitle: '选择 cookies.txt 文件',
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final filePath = result.files.single.path;
+      if (filePath == null) return;
+
+      final loc = AppLocalizations.of(context)!;
+      final success = await _cookieService.importNetscapeCookieFile(filePath);
+
+      if (mounted) {
+        if (success) {
+          await _loadCookieFilePath();
+          await _loadCookies();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(loc.cookieFileImported),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(loc.cookieFileImportFailed),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 清除 Cookie 文件
+  Future<void> _clearCookieFile() async {
+    final loc = AppLocalizations.of(context)!;
+    await _cookieService.clearCookieFile();
+    if (mounted) {
+      setState(() {
+        _cookieFilePath = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(loc.cookieFileCleared)),
+      );
     }
   }
 
@@ -379,6 +452,123 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         // Cookie 管理
         const Divider(),
         _buildSectionHeader(loc.cookieManagement),
+
+        // 📄 从文件导入 Cookie 卡片
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.file_open_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      loc.importCookieFile,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const Spacer(),
+                    // 帮助链接
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () async {
+                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/README.md#cookie-import');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.help_outline,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              loc.cookieHelp,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  loc.importCookieFileHint,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 当前文件路径或「未导入」
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _cookieFilePath != null
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        size: 16,
+                        color: _cookieFilePath != null
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _cookieFilePath != null
+                              ? '${loc.currentCookieFile}: ${_cookieFilePath!.split('/').last.split('\\').last}'
+                              : loc.noCookieFile,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _importCookieFile,
+                        icon: const Icon(Icons.upload_file),
+                        label: Text(loc.importCookieFile),
+                      ),
+                    ),
+                    if (_cookieFilePath != null) ...[  
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: _clearCookieFile,
+                        icon: const Icon(Icons.delete_outline),
+                        label: Text(loc.clearCookieFile),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
         // 一键登录 Bilibili
         Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

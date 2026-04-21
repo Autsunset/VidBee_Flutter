@@ -181,6 +181,15 @@ class AppLocalizationsKo {
     'selectVideoQuality': '비디오 품질 선택',
     'selectAudioQuality': '오디오 품질 선택',
     'highQualityRequiresLogin': '🔒 고해상도는 로그인이 필요합니다. 설정에서 쿠키를 추가하세요',
+    'importCookieFile': '쿠키 파일 가져오기',
+    'importCookieFileHint': 'Netscape 형식 지원 (.txt)',
+    'cookieFileImported': '쿠키 파일 가져오기 성공',
+    'cookieFileImportFailed': '가져오기 실패, 파일 형식을 확인하세요',
+    'cookieFileCleared': '쿠키 파일이 삭제되었습니다',
+    'noCookieFile': '가져오지 않음',
+    'cookieHelp': '쿠키 사용 방법?',
+    'currentCookieFile': '현재 파일',
+    'clearCookieFile': '파일 삭제',
   };
 
   String getLocalizedValue(String key) {

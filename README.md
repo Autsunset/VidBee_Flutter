@@ -46,6 +46,26 @@ Seamlessly log in to platforms like Bilibili and YouTube using WebView for acces
 
 ---
 
+### <a name="cookie-import"></a>🍪 Cookie Import
+
+Some videos (e.g., restricted content, high-quality streams) require cookies to be parsed or downloaded. VidBee_Flutter supports importing cookies in **Netscape format**.
+
+#### **How to get cookies.txt file:**
+1. Use a browser extension like **"Get cookies.txt LOCALLY"** (available for Chrome/Edge).
+2. Go to the video site (e.g., Douyin, YouTube) and log in.
+3. Click the extension icon, ensure **"Netscape"** format is selected.
+4. Click **"Export"** to download the `cookies.txt` file.
+
+#### **How to import in VidBee_Flutter:**
+1. Open VidBee_Flutter -> **Settings** -> **Cookie Management**.
+2. Click **"Import Cookie File"** and select the `.txt` file you just downloaded.
+3. Once imported, VidBee_Flutter will automatically use these cookies for all subsequent parse and download requests.
+
+> [!CAUTION]
+> Your cookie file contains sensitive login information. **Never share your cookies.txt file** with others.
+
+---
+
 ### 💡 Tips & Troubleshooting
 
 #### ⚠️ Custom User-Agent (Highly Recommended)

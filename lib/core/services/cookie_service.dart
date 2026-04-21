@@ -8,6 +8,7 @@ class CookieService {
   CookieService._internal();
 
   static const String _cookieKeyPrefix = 'cookie_';
+  static const String _cookieFilePathKey = 'cookie_file_path';
 
   /// 保存网站的 Cookie
   Future<void> saveCookie(String domain, String cookie) async {
@@ -176,7 +177,7 @@ class CookieService {
     }
   }
 
-  /// 从文件导入 Cookie
+  /// 从文件导入 Cookie（旧格式：domain:value）
   Future<bool> importCookies(String filePath) async {
     try {
       final file = File(filePath);
@@ -196,6 +197,90 @@ class CookieService {
       print('导入 Cookie 失败: $e');
       return false;
     }
+  }
+
+  /// 从 Netscape 格式 cookies.txt 文件导入 Cookie
+  /// 标准格式：# Netscape HTTP Cookie File 开头，每行 7 列（Tab 分隔）
+  /// 列：domain\tflag\tpath\tsecure\texpiry\tname\tvalue
+  Future<bool> importNetscapeCookieFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        print('Cookie 文件不存在: $filePath');
+        return false;
+      }
+
+      final content = await file.readAsString();
+      final lines = content.split('\n');
+
+      // 按 domain 分组，收集该 domain 下的所有 name=value
+      final Map<String, List<String>> domainCookies = {};
+
+      for (final rawLine in lines) {
+        final line = rawLine.trim();
+        // 跳过注释行和空行
+        if (line.isEmpty || line.startsWith('#')) continue;
+
+        final parts = line.split('\t');
+        // Netscape 格式必须恰好有 7 列
+        if (parts.length < 7) continue;
+
+        var domain = parts[0].trim();
+        // 有些工具导出的 domain 带前导点（.youtube.com），去除
+        if (domain.startsWith('.')) {
+          domain = domain.substring(1);
+        }
+        // 去除 www. 前缀
+        if (domain.startsWith('www.')) {
+          domain = domain.substring(4);
+        }
+
+        final name = parts[5].trim();
+        final value = parts[6].trim();
+
+        if (domain.isEmpty || name.isEmpty) continue;
+
+        domainCookies.putIfAbsent(domain, () => []).add('$name=$value');
+      }
+
+      if (domainCookies.isEmpty) {
+        print('未找到有效的 Cookie 条目');
+        return false;
+      }
+
+      // 将解析结果按 domain 保存（合并为 "; " 分隔的格式）
+      for (final entry in domainCookies.entries) {
+        final cookieStr = entry.value.join('; ');
+        await saveCookie(entry.key, cookieStr);
+      }
+
+      // 同时保存原始文件路径，供 yt-dlp 直接使用
+      await setCookieFilePath(filePath);
+
+      print('Netscape Cookie 文件导入成功，共解析 ${domainCookies.length} 个域名');
+      return true;
+    } catch (e) {
+      print('导入 Netscape Cookie 文件失败: $e');
+      return false;
+    }
+  }
+
+  /// 获取已保存的 Cookie 文件路径（供 yt-dlp 使用）
+  Future<String?> getCookieFilePath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_cookieFilePathKey);
+  }
+
+  /// 保存 Cookie 文件路径
+  Future<void> setCookieFilePath(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cookieFilePathKey, path);
+  }
+
+  /// 清除已保存的 Cookie 文件路径（不删除实际文件）
+  Future<void> clearCookieFile() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cookieFilePathKey);
   }
 
   /// 序列化 Cookie
