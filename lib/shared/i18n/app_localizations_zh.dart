@@ -181,6 +181,15 @@ class AppLocalizationsZh {
     'selectVideoQuality': '选择视频质量',
     'selectAudioQuality': '选择音频质量',
     'highQualityRequiresLogin': '🔒 高清晰度需要登录，请在设置中添加 Cookie',
+    'importCookieFile': '从文件导入 Cookie',
+    'importCookieFileHint': '支持 Netscape 格式 (.txt)',
+    'cookieFileImported': 'Cookie 文件导入成功',
+    'cookieFileImportFailed': '导入失败，请检查文件格式',
+    'cookieFileCleared': 'Cookie 文件已清除',
+    'noCookieFile': '未导入',
+    'cookieHelp': '如何使用 Cookie？',
+    'currentCookieFile': '当前文件',
+    'clearCookieFile': '清除文件',
   };
 
   String getLocalizedValue(String key) {

@@ -181,6 +181,15 @@ class AppLocalizationsEn {
     'selectVideoQuality': 'Select Video Quality',
     'selectAudioQuality': 'Select Audio Quality',
     'highQualityRequiresLogin': '🔒 High definition requires login, please add Cookie in settings',
+    'importCookieFile': 'Import Cookie File',
+    'importCookieFileHint': 'Supports Netscape format (.txt)',
+    'cookieFileImported': 'Cookie file imported successfully',
+    'cookieFileImportFailed': 'Import failed, please check file format',
+    'cookieFileCleared': 'Cookie file cleared',
+    'noCookieFile': 'Not imported',
+    'cookieHelp': 'How to use cookies?',
+    'currentCookieFile': 'Current file',
+    'clearCookieFile': 'Clear file',
   };
 
   String getLocalizedValue(String key) {

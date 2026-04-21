@@ -181,6 +181,15 @@ class AppLocalizationsJa {
     'selectVideoQuality': '画質を選択',
     'selectAudioQuality': '音質を選択',
     'highQualityRequiresLogin': '🔒 高解像度にはログインが必要です。設定でCookieを追加してください',
+    'importCookieFile': 'Cookieファイルをインポート',
+    'importCookieFileHint': 'Netscape形式をサポート (.txt)',
+    'cookieFileImported': 'Cookieファイルのインポートに成功しました',
+    'cookieFileImportFailed': 'インポート失敗、ファイル形式を確認してください',
+    'cookieFileCleared': 'Cookieファイルを削除しました',
+    'noCookieFile': '未インポート',
+    'cookieHelp': 'Cookieの使い方は？',
+    'currentCookieFile': '現在のファイル',
+    'clearCookieFile': 'ファイルを削除',
   };
 
   String getLocalizedValue(String key) {

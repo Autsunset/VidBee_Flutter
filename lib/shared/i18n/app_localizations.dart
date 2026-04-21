@@ -217,6 +217,15 @@ class AppLocalizations {
   String get selectVideoQuality => _translate('selectVideoQuality');
   String get selectAudioQuality => _translate('selectAudioQuality');
   String get highQualityRequiresLogin => _translate('highQualityRequiresLogin');
+  String get importCookieFile => _translate('importCookieFile');
+  String get importCookieFileHint => _translate('importCookieFileHint');
+  String get cookieFileImported => _translate('cookieFileImported');
+  String get cookieFileImportFailed => _translate('cookieFileImportFailed');
+  String get cookieFileCleared => _translate('cookieFileCleared');
+  String get noCookieFile => _translate('noCookieFile');
+  String get cookieHelp => _translate('cookieHelp');
+  String get currentCookieFile => _translate('currentCookieFile');
+  String get clearCookieFile => _translate('clearCookieFile');
 
   String _translate(String key) {
     switch (locale.languageCode) {
