@@ -1,5 +1,5 @@
 name: vidbee_flutter
-description: "VidBee - 从全球几乎任何网站下载视频的 Android 应用"
+description: "A modern, open-source video downloader for Android powered by yt-dlp."
 publish_to: 'none'
 
 version: 1.0.3+1
