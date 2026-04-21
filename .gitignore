@@ -11,6 +11,11 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+*_TASK.md
+*_LOG.md
+implementation_plan.md
+task.md
+walkthrough.md
 
 # IntelliJ related
 *.iml
