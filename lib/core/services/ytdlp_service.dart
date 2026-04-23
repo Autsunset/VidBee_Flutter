@@ -35,15 +35,8 @@ class YtDlpService {
         _isInitialized = true;
         _setupEventListeners();
         
-        // 初始化成功后自动更新 yt-dlp 到最新版本
-        try {
-          print('正在自动更新 yt-dlp 到最新版本...');
-          await _youtubeDL.updateYoutubeDL();
-          // UpdateResult 可能没有 success 字段，直接打印结果即可
-          print('yt-dlp 更新完成');
-        } catch (e) {
-          print('自动更新 yt-dlp 时出错（不影响使用）: $e');
-        }
+        // 初始化成功后自动更新 yt-dlp 到最新版本（带重试）
+        await _ensureYtDlpUpdated();
         
         return true;
       } else {
@@ -54,6 +47,29 @@ class YtDlpService {
       print('YtDlpService 初始化异常: $e');
       return false;
     }
+  }
+
+  /// 确保 yt-dlp 更新到最新版本（带重试机制）
+  Future<void> _ensureYtDlpUpdated() async {
+    for (int i = 0; i < 3; i++) {
+      try {
+        print('正在自动更新 yt-dlp (尝试 ${i + 1}/3)...');
+        final result = await _youtubeDL.updateYoutubeDL(
+          channel: UpdateChannel.stable,
+        );
+        if (result.status == OperationStatus.success) {
+          print('yt-dlp 更新成功: ${result.version}');
+          return;
+        } else {
+          print('yt-dlp 更新失败: ${result.errorMessage}');
+        }
+      } catch (e) {
+        print('第${i + 1}次更新 yt-dlp 出错: $e');
+      }
+      // 等待2秒后重试
+      await Future.delayed(Duration(seconds: 2));
+    }
+    print('yt-dlp 自动更新失败，将使用内置版本');
   }
 
   /// 设置事件监听器
@@ -111,8 +127,25 @@ class YtDlpService {
       // 检查是否有自定义UA
       if (customUA != null && customUA.isNotEmpty) {
         print('使用自定义UA: $customUA');
-        // 这里需要设置UA，具体API需要查看extractor包的文档
       }
+
+      // 检查是否有 Cookie 文件
+      final cookieService = CookieService();
+      final cookieFilePath = await cookieService.getCookieFilePath();
+      if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
+        final cookieFile = File(cookieFilePath);
+        if (await cookieFile.exists()) {
+          print('解析时使用 Cookie 文件: $cookieFilePath');
+        }
+      }
+
+      // Bilibili 需要 Referer
+      if (url.contains('bilibili.com')) {
+        print('使用 Bilibili Referer');
+      }
+
+      // extractor 包的 getVideoInfo 不支持自定义选项
+      // 使用基础解析，依赖已初始化的全局配置
       final info = await _youtubeDL.getVideoInfo(url);
       return _convertToVidbeeVideoInfo(info);
     } catch (e) {
@@ -312,6 +345,61 @@ class YtDlpService {
       print('获取版本信息失败: $e');
       return {};
     }
+  }
+
+  /// 诊断测试 - 用于排查解析问题
+  Future<Map<String, dynamic>> diagnose(String url) async {
+    if (!_isInitialized) {
+      final initialized = await initialize();
+      if (!initialized) {
+        return {'success': false, 'error': '初始化失败'};
+      }
+    }
+
+    final result = <String, dynamic>{};
+    
+    // 1. 获取 yt-dlp 版本
+    try {
+      final version = await getVersionInfo();
+      result['version'] = version;
+      print('当前 yt-dlp 版本: ${version['yt-dlp']}');
+    } catch (e) {
+      result['version_error'] = e.toString();
+    }
+
+    // 2. 尝试解析视频
+    try {
+      print('正在测试解析: $url');
+      final info = await _youtubeDL.getVideoInfo(url);
+      result['parse_success'] = true;
+      result['title'] = info.title;
+      result['duration'] = info.duration;
+      result['uploader'] = info.uploader;
+      result['formats_count'] = info.formats?.length ?? 0;
+      print('解析成功: ${info.title}');
+    } catch (e) {
+      result['parse_success'] = false;
+      result['parse_error'] = e.toString();
+      print('解析失败: $e');
+    }
+
+    // 3. 检查是否需要更新
+    try {
+      final updateResult = await _youtubeDL.updateYoutubeDL(channel: UpdateChannel.stable);
+      result['update_status'] = updateResult.status.toString();
+      result['update_version'] = updateResult.version;
+      if (updateResult.status == OperationStatus.success) {
+        print('yt-dlp 已更新到: ${updateResult.version}');
+      } else {
+        print('yt-dlp 更新失败: ${updateResult.errorMessage}');
+        result['update_error'] = updateResult.errorMessage;
+      }
+    } catch (e) {
+      result['update_error'] = e.toString();
+      print('更新出错: $e');
+    }
+
+    return result;
   }
 
   /// 转换为 VidBee VideoInfo 格式

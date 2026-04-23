@@ -63,8 +63,15 @@ android {
     }
 }
 
+repositories {
+    google()
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
+    // youtubedl-android 由 extractor 插件自动引入，无需手动添加
 }
 
 flutter {
