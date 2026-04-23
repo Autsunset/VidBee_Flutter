@@ -63,8 +63,18 @@ android {
     }
 }
 
+repositories {
+    google()
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
+    
+    // 手动添加最新 youtubedl-android，覆盖 extractor 的旧版本
+    implementation("com.github.yausername.youtubedl-android:library:0.15.0")
+    implementation("com.github.yausername.youtubedl-android:ffmpeg:0.15.0")
 }
 
 flutter {

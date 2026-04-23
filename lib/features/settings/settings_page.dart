@@ -735,7 +735,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           subtitle: Text(
             _versionInfo.isEmpty
                 ? loc.updateYtDlp
-                : '${loc.version}: yt-dlp ${_versionInfo['yt-dlp'] ?? 'Unknown'}',
+                : '${loc.version}: ${_versionInfo['yt-dlp']?.replaceFirst('yt-dlp ', '') ?? 'Unknown'}',
           ),
           trailing: _isUpdating
               ? null
