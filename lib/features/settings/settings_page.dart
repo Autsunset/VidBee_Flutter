@@ -528,11 +528,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const Spacer(),
-                    // 帮助链接 - 跳转到 Cookie 使用指南
+                    // 帮助链接
                     InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () async {
-                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md');
+                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/README.md#cookie-import');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
                         }

@@ -1,79 +1,79 @@
-# VidBee Cookie 使用指南
+# VidBee Cookie Usage Guide
 
-本文档介绍如何使用浏览器插件导出 Cookie，以便 VidBee 能够下载需要登录才能访问的视频。
+This document explains how to use browser extensions to export cookies, enabling VidBee to download videos that require login access.
 
-## 目录
+## Table of Contents
 
-- [为什么要使用 Cookie？](#为什么要使用-cookie)
-- [推荐的浏览器插件](#推荐的浏览器插件)
-- [详细使用步骤](#详细使用步骤)
-- [重要提示](#重要提示)
-- [常见问题](#常见问题)
-
----
-
-## 为什么要使用 Cookie？
-
-很多视频网站（如 Bilibili、YouTube）需要登录才能：
-- 观看高清晰度视频（1080P 及以上）
-- 访问会员专属内容
-- 下载某些受限视频
-
-通过导入浏览器 Cookie，VidBee 可以使用你的登录状态来下载这些视频。
+- [Why Use Cookies?](#why-use-cookies)
+- [Recommended Browser Extensions](#recommended-browser-extensions)
+- [Detailed Usage Steps](#detailed-usage-steps)
+- [Important Notes](#important-notes)
+- [FAQ](#faq)
 
 ---
 
-## 推荐的浏览器插件
+## Why Use Cookies?
 
-### 1. Get cookies.txt LOCALLY（推荐）
+Many video platforms (such as Bilibili, YouTube) require login to:
+- Watch high-definition videos (1080P and above)
+- Access member-exclusive content
+- Download certain restricted videos
 
-这是一个开源、安全的浏览器插件，支持 Chrome、Edge、Firefox 等浏览器。
+By importing browser cookies, VidBee can use your login status to download these videos.
 
-**下载地址：**
+---
+
+## Recommended Browser Extensions
+
+### 1. Get cookies.txt LOCALLY (Recommended)
+
+This is an open-source, secure browser extension that supports Chrome, Edge, Firefox, and other browsers.
+
+**Download Links:**
 - Chrome/Edge: [Chrome Web Store](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckofkjlflfgjcfddglnfij)
 - Firefox: [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/get-cookies-txt-locally/)
-- GitHub: [https://github.com/kairi003/Get-cookies.txt-LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY)
+- GitHub: https://github.com/kairi003/Get-cookies.txt-LOCALLY
 
-**插件特点：**
-- 完全本地运行，不会上传数据到任何服务器
-- 支持导出所有网站的 Cookie
-- 支持 Netscape 格式（yt-dlp 标准格式）
+**Extension Features:**
+- Runs entirely locally without uploading data to any server
+- Supports exporting cookies from all websites
+- Supports Netscape format (yt-dlp standard format)
 
 ---
 
-## 详细使用步骤
+## Detailed Usage Steps
 
-### 第一步：安装插件
+### Step 1: Install the Extension
 
-1. 打开你的浏览器（Chrome、Edge 或 Firefox）
-2. 访问上方的下载地址安装插件
-3. 安装完成后，浏览器工具栏会出现插件图标
+1. Open your browser (Chrome, Edge, or Firefox)
+2. Visit the download links above to install the extension
+3. After installation, the extension icon will appear in your browser toolbar
 
-### 第二步：登录目标网站
+### Step 2: Log in to Target Website
 
-**重要：使用桌面端浏览器登录！**
+**Important: Use desktop browser to log in!**
 
-> ⚠️ **关键提示**：VidBee 视频解析必须使用桌面端 UA（Windows/Mac 浏览器），使用移动端 UA 会导致解析失败！
+> ⚠️ **Key Tip**: VidBee video parsing **must use desktop UA** (Windows/Mac browser). Using mobile UA will cause parsing failures!
 >
-> 因此，请务必在 **桌面版浏览器** 中登录网站，而不是手机浏览器。
+> Therefore, please make sure to log in on the **desktop version** of the website, not the mobile browser.
 
-1. 在浏览器中打开你要下载的视频网站：
+1. Open the video website you want to download from in your browser:
    - Bilibili: https://www.bilibili.com
    - YouTube: https://www.youtube.com
-   - 其他网站...
+   - Other websites...
 
-2. 使用你的账号正常登录
-3. 确保登录成功（能看到你的头像/用户名）
+2. Log in with your account normally
+3. Ensure login is successful (you can see your avatar/username)
 
-### 第三步：导出 Cookie
+### Step 3: Export Cookies
 
-1. 点击浏览器工具栏上的插件图标
-2. 选择 **"Export All Cookies"**（导出所有 Cookie）
-   - 或者选择特定网站，如果你只想导出某个网站的 Cookie
-3. 导出格式选择 **"Netscape"**
-4. 保存文件（例如：`cookies.txt`）
+1. Click the extension icon in your browser toolbar
+2. Select **"Export All Cookies"** (exports all cookies)
+   - Or select a specific site if you only want to export cookies for that site
+3. Choose **"Netscape"** as the export format
+4. Save the file (e.g., `cookies.txt`)
 
-**导出示例：**
+**Export Example:**
 
 ```
 # Netscape HTTP Cookie File
@@ -83,118 +83,118 @@
 .bilibili.com	TRUE	/	FALSE	1795412322	bili_jct	xxx
 ```
 
-### 第四步：导入到 VidBee
+### Step 4: Import to VidBee
 
-1. 打开 VidBee 应用
-2. 进入 **设置 → Cookie 管理**
-3. 点击 **"导入 Cookie 文件"**
-4. 选择刚才导出的 `cookies.txt` 文件
-5. 导入成功后，会显示已导入的网站列表
+1. Open the VidBee app
+2. Go to **Settings → Cookie Management**
+3. Click **"Import Cookie File"**
+4. Select the `cookies.txt` file you just exported
+5. After successful import, the list of imported websites will be displayed
 
-**支持的网站：**
+**Supported Websites:**
 - Bilibili (bilibili.com)
 - YouTube (youtube.com)
-- 以及其他任何网站
+- And any other websites
 
 ---
 
-## 重要提示
+## Important Notes
 
-### 1. 关于 User-Agent（UA）
+### 1. About User-Agent (UA)
 
-**VidBee 已经默认使用桌面端 UA**，无需手动设置。
+**VidBee already uses desktop UA by default**, no manual setting is required.
 
-但如果你自定义了 UA，请注意：
-- Bilibili 视频解析**必须使用桌面端 UA**
-- 推荐 UA：
+However, if you customize the UA, please note:
+- Bilibili video parsing **must use desktop UA**
+- Recommended UA:
   ```
   Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
   ```
-- 不要使用移动端 UA（iPhone、Android），否则会导致解析失败
+- Do not use mobile UA (iPhone, Android), otherwise parsing will fail
 
-### 2. 多网站 Cookie 支持
+### 2. Multi-Website Cookie Support
 
-VidBee 支持同时导入多个网站的 Cookie：
-- 你可以一次性导出浏览器中所有网站的 Cookie
-- VidBee 会自动按域名分类存储
-- Bilibili 的 Cookie 不会覆盖 YouTube 的 Cookie
+VidBee supports importing cookies for multiple websites simultaneously:
+- You can export all cookies from your browser at once
+- VidBee will automatically categorize and store by domain
+- Bilibili cookies will not overwrite YouTube cookies
 
-### 3. Cookie 有效期
+### 3. Cookie Validity
 
-- 大部分 Cookie 会在一段时间后过期
-- 如果下载失败，请重新导出并导入最新的 Cookie
-- 建议每次下载前检查 Cookie 是否有效
+- Most cookies will expire after a period of time
+- If download fails, please re-export and import the latest cookies
+- It is recommended to check if cookies are valid before each download
 
-### 4. 隐私安全
+### 4. Privacy & Security
 
-- Cookie 文件包含你的登录信息，**请勿分享给他人**
-- VidBee 只会在本地使用 Cookie，不会上传到任何服务器
-- 建议定期检查并清理不需要的 Cookie
-
----
-
-## 常见问题
-
-### Q: 导入 Cookie 后还是无法下载高清视频？
-
-**可能原因：**
-1. Cookie 已过期 - 请重新导出导入
-2. 账号没有相应权限 - 确保你的账号可以观看该清晰度
-3. 使用的是移动端 UA - 检查设置中的自定义 UA
-
-### Q: 可以同时登录多个账号吗？
-
-不可以。VidBee 使用浏览器的 Cookie，同一时间只能使用一个账号的登录状态。
-
-### Q: Cookie 文件可以手动编辑吗？
-
-可以，但不建议。如果需要修改，请确保：
-- 保持 Netscape 格式不变
-- 使用 Tab 键分隔各列
-- 不要删除 `#` 开头的注释行
-
-### Q: 如何删除已导入的 Cookie？
-
-在 VidBee 中：
-1. 进入 **设置 → Cookie 管理**
-2. 点击对应网站下方的 **"清理"** 按钮
-3. 或者点击 **"清除所有 Cookie"** 清除全部
-
-### Q: 为什么 YouTube 视频下载很慢？
-
-YouTube 对下载有限制，建议：
-1. 确保使用有效的登录 Cookie
-2. 避免频繁下载
-3. 使用稳定的网络连接
+- Cookie files contain your login information, **do not share with others**
+- VidBee only uses cookies locally and will not upload to any server
+- It is recommended to regularly check and clean up unnecessary cookies
 
 ---
 
-## 其他获取 Cookie 的方法
+## FAQ
 
-### 方法一：WebView 内置登录（VidBee 内）
+### Q: Still can't download HD videos after importing cookies?
 
-VidBee 内置了一键登录功能：
-1. 进入 **设置 → Cookie 管理**
-2. 点击 **"Bilibili 登录"** 或 **"YouTube 登录"**
-3. 在弹出的页面中登录你的账号
-4. 登录成功后 Cookie 会自动保存
+**Possible causes:**
+1. Cookies have expired - Please re-export and import
+2. Account doesn't have corresponding permissions - Make sure your account can watch that quality
+3. Using mobile UA - Check the custom UA in settings
 
-### 方法二：手动输入 Cookie
+### Q: Can I log in to multiple accounts at the same time?
 
-如果你知道 Cookie 字符串，可以手动输入：
-1. 进入 **设置 → Cookie 管理**
-2. 点击 **"手动输入 Cookie"**
-3. 粘贴 Cookie 字符串
+No. VidBee uses browser cookies, so only one account's login status can be used at a time.
+
+### Q: Can I manually edit the cookie file?
+
+Yes, but not recommended. If you need to modify, please ensure:
+- Keep the Netscape format unchanged
+- Use Tab key to separate columns
+- Do not delete comment lines starting with `#`
+
+### Q: How to delete imported cookies?
+
+In VidBee:
+1. Go to **Settings → Cookie Management**
+2. Click the **"Clear"** button below the corresponding website
+3. Or click **"Clear All Cookies"** to clear all
+
+### Q: Why is YouTube video download very slow?
+
+YouTube has restrictions on downloads, it is recommended to:
+- Ensure valid login cookies are used
+- Avoid frequent downloads
+- Use a stable network connection
 
 ---
 
-## 技术支持
+## Other Methods to Get Cookies
 
-如有问题，请访问：
+### Method 1: WebView Built-in Login (within VidBee)
+
+VidBee has a one-click login function built-in:
+1. Go to **Settings → Cookie Management**
+2. Click **"Bilibili Login"** or **"YouTube Login"**
+3. Log in to your account in the popup page
+4. After successful login, cookies will be automatically saved
+
+### Method 2: Manual Cookie Input
+
+If you know the cookie string, you can manually input it:
+1. Go to **Settings → Cookie Management**
+2. Click **"Manually Input Cookie"**
+3. Paste the cookie string
+
+---
+
+## Technical Support
+
+For issues, please visit:
 - GitHub Issues: https://github.com/Autsunset/VidBee_Flutter/issues
-- 项目主页: https://github.com/Autsunset/VidBee_Flutter
+- Project Homepage: https://github.com/Autsunset/VidBee_Flutter
 
 ---
 
-**最后更新：** 2026-04-24  
-**适用版本：** VidBee v1.0.6+
+**Last Updated:** 2026-04-24  
+**Applicable Version:** VidBee v1.0.6+
