@@ -1,0 +1,85 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        channel: 'stable'
+        
+    - name: Get dependencies
+      run: flutter pub get
+      
+    - name: Build APK
+      run: flutter build apk --release
+      
+    - name: Get version
+      id: get_version
+      run: |
+        VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+        
+    - name: Rename APK with version
+      run: |
+        VERSION=${{ steps.get_version.outputs.VERSION }}
+        mkdir -p release
+        cp build/app/outputs/flutter-apk/app-release.apk release/VidBee-v${VERSION}.apk
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: VidBee-APK
+        path: release/*.apk
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*.apk
+        name: VidBee ${{ github.ref_name }}
+        body: |
+          ## VidBee ${{ github.ref_name }}
+          
+          ### 更新内容
+          - 新增 Cookie 使用指南文档
+          - 优化 Bilibili UA 处理逻辑
+          - 支持多网站 Cookie 分别存储
+          - 在设置中添加跳转到 Cookie 指南的链接
+          
+          ### 安装方法
+          1. 下载 APK 文件
+          2. 在 Android 设备上安装
+          3. 开启存储权限即可使用
+          
+          ### Cookie 使用说明
+          请参考 [COOKIES_GUIDE.md](https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md)
+          
+          ### 注意事项
+          - Bilibili 视频解析必须使用桌面端 UA
+          - 支持同时导入多个网站的 Cookie
+          - Cookie 文件包含登录信息，请勿分享给他人
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

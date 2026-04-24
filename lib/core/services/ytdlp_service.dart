@@ -124,29 +124,85 @@ class YtDlpService {
     }
 
     try {
-      // 检查是否有自定义UA
-      if (customUA != null && customUA.isNotEmpty) {
-        print('使用自定义UA: $customUA');
+      final cookieService = CookieService();
+      final options = <String, String>{};
+
+      // Bilibili 必须使用桌面端域名和 UA，否则 yt-dlp 会自动转为移动端导致解析失败
+      String effectiveUA = customUA ?? '';
+      if (url.contains('bilibili.com')) {
+        url = url.replaceFirst('m.bilibili.com', 'www.bilibili.com');
+        // 检查用户是否已经设置了桌面端 UA
+        if (!_isDesktopUA(effectiveUA)) {
+          // Bilibili 强制使用桌面端 UA，避免 yt-dlp 内部重定向到移动端
+          const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+          effectiveUA = desktopUA;
+          print('Bilibili 强制使用桌面端UA: $desktopUA');
+        } else {
+          print('Bilibili 使用用户设置的桌面端UA');
+        }
       }
 
-      // 检查是否有 Cookie 文件
-      final cookieService = CookieService();
-      final cookieFilePath = await cookieService.getCookieFilePath();
+      // 添加自定义 User-Agent
+      if (effectiveUA.isNotEmpty) {
+        options['--user-agent'] = effectiveUA;
+        if (!url.contains('bilibili.com')) {
+          print('使用自定义UA: $effectiveUA');
+        }
+      }
+
+      // 添加 Cookie 文件（按域名获取）
+      final domain = cookieService.extractDomain(url);
+      print('提取到的域名: $domain');
+      
+      // 先尝试获取域名特定的 Cookie 文件
+      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(domain);
+      
+      // 如果没有找到，尝试获取通用 Cookie 文件（向后兼容）
+      if (cookieFilePath == null || cookieFilePath.isEmpty) {
+        cookieFilePath = await cookieService.getCookieFilePath();
+      }
+      
       if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
         final cookieFile = File(cookieFilePath);
         if (await cookieFile.exists()) {
-          print('解析时使用 Cookie 文件: $cookieFilePath');
+          final size = await cookieFile.length();
+          if (size > 0) {
+            options['--cookies'] = cookieFilePath;
+            print('解析时使用 Cookie 文件: $cookieFilePath (大小: $size bytes)');
+            // 打印文件内容前 500 字符用于调试
+            final content = await cookieFile.readAsString();
+            print('Cookie 文件内容预览:\n${content.substring(0, content.length > 500 ? 500 : content.length)}');
+          } else {
+            print('Cookie 文件为空，跳过: $cookieFilePath');
+          }
+        } else {
+          print('Cookie 文件不存在: $cookieFilePath');
         }
+      } else {
+        print('未设置 Cookie 文件路径');
       }
 
       // Bilibili 需要 Referer
       if (url.contains('bilibili.com')) {
+        options['--referer'] = 'https://www.bilibili.com';
         print('使用 Bilibili Referer');
       }
 
-      // extractor 包的 getVideoInfo 不支持自定义选项
-      // 使用基础解析，依赖已初始化的全局配置
-      final info = await _youtubeDL.getVideoInfo(url);
+      // 抖音/TikTok 可能需要特殊处理
+      if (url.contains('douyin.com') || url.contains('tiktok.com')) {
+        options['--extractor-args'] = 'generic:impersonate=chrome';
+      }
+
+      // 使用 getVideoInfoWithOptions 传递自定义选项
+      VideoInfo info;
+      print('准备解析 URL: $url');  // 调试打印
+      if (options.isNotEmpty) {
+        print('解析选项: $options');
+        info = await _youtubeDL.getVideoInfoWithOptions(url, options);
+      } else {
+        info = await _youtubeDL.getVideoInfo(url);
+      }
+      
       return _convertToVidbeeVideoInfo(info);
     } catch (e) {
       print('获取视频信息失败: $e');
@@ -219,25 +275,60 @@ class YtDlpService {
       final outputTemplate = 'VidBee_%(title)s.%(ext)s';
       print('输出文件名: $outputTemplate');
 
-      // 检查是否有自定义UA
-      if (customUA != null && customUA.isNotEmpty) {
-        print('使用自定义UA: $customUA');
+      final cookieService = CookieService();
+      final customOptions = <String, String>{};
+
+      // Bilibili 强制使用桌面端域名和 UA
+      var downloadUrl = task.url;
+      String effectiveUA = customUA ?? '';
+      if (downloadUrl.contains('bilibili.com')) {
+        downloadUrl = downloadUrl.replaceFirst('m.bilibili.com', 'www.bilibili.com');
+        // 检查用户是否已经设置了桌面端 UA
+        if (!_isDesktopUA(effectiveUA)) {
+          // Bilibili 必须使用桌面端 UA
+          const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+          effectiveUA = desktopUA;
+          print('Bilibili 下载强制使用桌面端UA');
+        } else {
+          print('Bilibili 下载使用用户设置的桌面端UA');
+        }
       }
 
-      // 检查是否有 Cookie 文件
-      final cookieService = CookieService();
-      final cookieFilePath = await cookieService.getCookieFilePath();
-      Map<String?, String?>? customOptions;
+      // 添加自定义 UA
+      if (effectiveUA.isNotEmpty) {
+        customOptions['--user-agent'] = effectiveUA;
+        if (!downloadUrl.contains('bilibili.com')) {
+          print('下载时使用自定义UA: $effectiveUA');
+        }
+      }
+
+      // 添加 Cookie 文件（按域名获取）
+      final downloadDomain = cookieService.extractDomain(downloadUrl);
+      print('下载时提取到的域名: $downloadDomain');
+      
+      // 先尝试获取域名特定的 Cookie 文件
+      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(downloadDomain);
+      
+      // 如果没有找到，尝试获取通用 Cookie 文件（向后兼容）
+      if (cookieFilePath == null || cookieFilePath.isEmpty) {
+        cookieFilePath = await cookieService.getCookieFilePath();
+      }
+      
       if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
         final cookieFile = File(cookieFilePath);
         if (await cookieFile.exists()) {
-          customOptions = {'--cookies': cookieFilePath};
+          customOptions['--cookies'] = cookieFilePath;
           print('下载时使用 Cookie 文件: $cookieFilePath');
         }
       }
 
+      // Bilibili 需要 Referer
+      if (downloadUrl.contains('bilibili.com')) {
+        customOptions['--referer'] = 'https://www.bilibili.com';
+      }
+
       final request = DownloadRequest(
-        url: task.url,
+        url: downloadUrl,
         outputPath: downloadPath,
         outputTemplate: outputTemplate,
         format: format,
@@ -247,7 +338,7 @@ class YtDlpService {
         extractAudio: task.type == vidbee.DownloadType.audio,
         audioFormat: task.type == vidbee.DownloadType.audio ? 'mp3' : null,
         audioQuality: task.type == vidbee.DownloadType.audio ? 0 : null,
-        customOptions: customOptions,
+        customOptions: customOptions.isEmpty ? null : customOptions,
       );
 
       final result = await _youtubeDL.download(request);
@@ -440,6 +531,35 @@ class YtDlpService {
       tags: null,
       formats: formats,
     );
+  }
+
+  /// 检查 UA 是否为桌面端 UA
+  /// 返回 true 如果是 Windows、Mac 或 Linux 桌面端 UA
+  bool _isDesktopUA(String ua) {
+    if (ua.isEmpty) return false;
+    final lowerUA = ua.toLowerCase();
+    // 检查是否包含桌面端标识
+    final desktopKeywords = [
+      'windows nt',
+      'macintosh',
+      'mac os x',
+      'linux x86_64',
+      'linux i686',
+      'x11; linux',
+    ];
+    // 检查是否包含移动端标识
+    final mobileKeywords = [
+      'mobile',
+      'android',
+      'iphone',
+      'ipad',
+      'ipod',
+      'windows phone',
+    ];
+    // 如果包含桌面端标识且不包含移动端标识，认为是桌面端 UA
+    final hasDesktop = desktopKeywords.any((keyword) => lowerUA.contains(keyword));
+    final hasMobile = mobileKeywords.any((keyword) => lowerUA.contains(keyword));
+    return hasDesktop && !hasMobile;
   }
 
   /// 清理资源

@@ -160,7 +160,7 @@ class AppLocalizationsKo {
     'completedTask': '완료',
     'failedTask': '실패',
     'cancelledTask': '취소됨',
-            'noHistory': '기록 없음',
+    'noHistory': '기록 없음',
     'clearHistory': '기록 지우기',
     'confirmClearHistory': '모든 기록을 지우시겠습니까? 이 작업은 취소할 수 없습니다.',
     'taskDetails': '작업 세부 정보',

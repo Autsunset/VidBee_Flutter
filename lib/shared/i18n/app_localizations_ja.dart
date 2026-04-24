@@ -160,7 +160,7 @@ class AppLocalizationsJa {
     'completedTask': '完了',
     'failedTask': '失敗',
     'cancelledTask': 'キャンセル',
-            'noHistory': '履歴なし',
+    'noHistory': '履歴なし',
     'clearHistory': '履歴をクリア',
     'confirmClearHistory': 'すべての履歴をクリアしますか？この操作は元に戻せません。',
     'taskDetails': 'タスクの詳細',

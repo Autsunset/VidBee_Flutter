@@ -401,8 +401,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
   String? _extractUrl(String text) {
     // 常见视频网站 URL 正则表达式
     final urlPatterns = [
-      // Bilibili
-      RegExp(r'https?://(?:www\.)?bilibili\.com/video/[^\s]+'),
+      // Bilibili (支持 www 和移动端 m 域名)
+      RegExp(r'https?://(?:www\.|m\.)?bilibili\.com/video/[^\s]+'),
       // YouTube
       RegExp(r'https?://(?:www\.)?youtube\.com/watch\?v=[^\s]+'),
       RegExp(r'https?://(?:www\.)?youtube\.com/shorts/[^\s]+'),
@@ -424,12 +424,27 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         if (url.contains('?')) {
           url = url.split('?')[0];
         }
+        // 将移动端域名转换为桌面端域名
+        url = _convertMobileToDesktopUrl(url);
         print('提取到的 URL: $url');
         return url;
       }
     }
 
     return null;
+  }
+
+  /// 将移动端 URL 转换为桌面端 URL
+  String _convertMobileToDesktopUrl(String url) {
+    // Bilibili 移动端域名转换
+    if (url.contains('m.bilibili.com')) {
+      return url.replaceFirst('m.bilibili.com', 'www.bilibili.com');
+    }
+    // YouTube 移动端域名转换
+    if (url.contains('m.youtube.com')) {
+      return url.replaceFirst('m.youtube.com', 'www.youtube.com');
+    }
+    return url;
   }
 
   Future<void> _startDownload(VideoInfo videoInfo, VideoFormat? selectedFormat) async {

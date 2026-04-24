@@ -1,6 +1,6 @@
 class AppConstants {
   static const String appName = 'VidBee_Flutter';
-  static const String appVersion = '1.0.2';
+  static const String appVersion = '1.0.6';
   static const String githubUrl = 'https://github.com/Autsunset';
 
   static const int defaultMaxConcurrentDownloads = 3;

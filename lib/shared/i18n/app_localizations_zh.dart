@@ -160,7 +160,7 @@ class AppLocalizationsZh {
     'completedTask': '已完成',
     'failedTask': '失败',
     'cancelledTask': '已取消',
-            'noHistory': '暂无历史记录',
+    'noHistory': '暂无历史记录',
     'clearHistory': '清空历史',
     'confirmClearHistory': '确定要清空所有历史记录吗？此操作不可撤销。',
     'taskDetails': '任务详情',

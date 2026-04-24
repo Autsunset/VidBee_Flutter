@@ -166,10 +166,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 加载已保存的 Cookie 文件路径
   Future<void> _loadCookieFilePath() async {
-    final path = await _cookieService.getCookieFilePath();
+    // 获取所有域名的 Cookie 文件路径
+    final allPaths = await _cookieService.getAllCookieFilePaths();
     if (mounted) {
       setState(() {
-        _cookieFilePath = path;
+        // 显示第一个路径，或者如果有多个，显示汇总信息
+        if (allPaths.isEmpty) {
+          _cookieFilePath = null;
+        } else if (allPaths.length == 1) {
+          _cookieFilePath = allPaths.values.first;
+        } else {
+          _cookieFilePath = '已导入 ${allPaths.length} 个网站的 Cookie';
+        }
       });
     }
   }
@@ -203,7 +211,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     
     if (confirmed == true) {
       await _cookieService.removeCookie(domain);
+      // 同时清除该域名的 Cookie 文件路径
+      await _cookieService.clearCookieFileForDomain(domain);
       await _loadCookies();
+      await _loadCookieFilePath();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -265,6 +276,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 清除 Cookie 文件
   Future<void> _clearCookieFile() async {
     final loc = AppLocalizations.of(context)!;
+    // 清除所有域名的 Cookie 文件路径
+    final allPaths = await _cookieService.getAllCookieFilePaths();
+    for (final domain in allPaths.keys) {
+      await _cookieService.clearCookieFileForDomain(domain);
+    }
+    // 同时清除通用路径（向后兼容）
     await _cookieService.clearCookieFile();
     if (mounted) {
       setState(() {
@@ -511,11 +528,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const Spacer(),
-                    // 帮助链接
+                    // 帮助链接 - 跳转到 Cookie 使用指南
                     InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () async {
-                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/README.md#cookie-import');
+                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
                         }
@@ -1411,35 +1428,77 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('自定义 User-Agent'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '设置自定义的 User-Agent 字符串，用于某些需要特定 UA 的网站。留空则使用默认 UA。',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '常见 UA 示例：\n'
-              '• 抖音电脑端：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n'
-              '• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n'
-              '• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 重要提示：Bilibili 必须使用桌面端 UA
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
                   ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, 
+                            color: Colors.orange.shade700, 
+                            size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            '重要提示',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Bilibili 视频解析必须使用桌面端 UA（Windows/Mac），使用移动端 UA 会导致解析失败！',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.orange.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '设置自定义的 User-Agent 字符串，用于某些需要特定 UA 的网站。留空则使用默认 UA。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '常见 UA 示例：\n'
+                  '• 抖音电脑端：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n'
+                  '• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n'
+                  '• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: 'User-Agent',
+                    hintText: '粘贴 User-Agent...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'User-Agent',
-                hintText: '粘贴 User-Agent...',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
