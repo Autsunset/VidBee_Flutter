@@ -20,6 +20,20 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
   @override
   void initState() {
     super.initState();
+    _isLoading = true;
+    _statusMessage = '正在清理旧 Cookie...';
+    _clearWebViewCookiesAndInit();
+  }
+
+  /// 先清理 WebView Cookie，再初始化 WebView
+  Future<void> _clearWebViewCookiesAndInit() async {
+    try {
+      final cookieManager = WebViewCookieManager();
+      await cookieManager.clearCookies();
+      print('WebView Cookie 已清理，准备加载登录页面');
+    } catch (e) {
+      print('清理 WebView Cookie 失败: $e');
+    }
     _initWebView();
   }
 

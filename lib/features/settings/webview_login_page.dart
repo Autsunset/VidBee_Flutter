@@ -38,7 +38,19 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     // 确保每次打开页面时都是全新状态
     _loginDetected = false;
     _isLoading = true;
-    _statusMessage = '正在加载登录页面...';
+    _statusMessage = '正在清理旧 Cookie...';
+    _clearWebViewCookiesAndInit();
+  }
+
+  /// 先清理 WebView Cookie，再初始化 WebView
+  Future<void> _clearWebViewCookiesAndInit() async {
+    try {
+      final cookieManager = WebViewCookieManager();
+      await cookieManager.clearCookies();
+      print('WebView Cookie 已清理，准备加载登录页面');
+    } catch (e) {
+      print('清理 WebView Cookie 失败: $e');
+    }
     _initWebView();
   }
 

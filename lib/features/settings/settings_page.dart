@@ -174,6 +174,47 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  /// 单独清理某个网站的 Cookie
+  Future<void> _removeSingleCookie(String domain) async {
+    final loc = AppLocalizations.of(context)!;
+    
+    // 显示确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(loc.clear),
+        content: Text('确定要清理 $domain 的 Cookie 吗？清理后需要重新登录。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(loc.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: Text(loc.ok),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      await _cookieService.removeCookie(domain);
+      await _loadCookies();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$domain Cookie 已清理'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
   /// 导入 Netscape 格式 Cookie 文件
   Future<void> _importCookieFile() async {
     try {
@@ -620,16 +661,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      _cookies.containsKey('bilibili.com') 
-                          ? loc.success 
-                          : loc.loginRequired,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _cookies.containsKey('bilibili.com') 
-                                ? Colors.green 
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                    Expanded(
+                      child: Text(
+                        _cookies.containsKey('bilibili.com') 
+                            ? loc.success 
+                            : loc.loginRequired,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _cookies.containsKey('bilibili.com') 
+                                  ? Colors.green 
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
                     ),
+                    // 单独清理 Bilibili Cookie 的按钮
+                    if (_cookies.containsKey('bilibili.com'))
+                      TextButton.icon(
+                        onPressed: () => _removeSingleCookie('bilibili.com'),
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: Text(loc.clear),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -688,16 +742,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      _cookies.containsKey('youtube.com') 
-                          ? loc.success 
-                          : loc.loginRequired,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _cookies.containsKey('youtube.com') 
-                                ? Colors.green 
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                    Expanded(
+                      child: Text(
+                        _cookies.containsKey('youtube.com') 
+                            ? loc.success 
+                            : loc.loginRequired,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _cookies.containsKey('youtube.com') 
+                                  ? Colors.green 
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
                     ),
+                    // 单独清理 YouTube Cookie 的按钮
+                    if (_cookies.containsKey('youtube.com'))
+                      TextButton.icon(
+                        onPressed: () => _removeSingleCookie('youtube.com'),
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: Text(loc.clear),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                   ],
                 ),
               ],

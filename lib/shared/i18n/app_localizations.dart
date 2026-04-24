@@ -80,6 +80,7 @@ class AppLocalizations {
   String get downloadCompleted => _translate('downloadCompleted');
   String get delete => _translate('delete');
   String get clearAll => _translate('clearAll');
+  String get clear => _translate('clear');
   String get confirmDelete => _translate('confirmDelete');
   String get yes => _translate('yes');
   String get no => _translate('no');

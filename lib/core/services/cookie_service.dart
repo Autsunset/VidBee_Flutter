@@ -1,6 +1,8 @@
 // Cookie 管理服务
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+// 仅在 Android/iOS 平台导入 WebView Cookie 管理
+import 'package:webview_flutter/webview_flutter.dart';
 
 class CookieService {
   static final CookieService _instance = CookieService._internal();
@@ -22,10 +24,15 @@ class CookieService {
     return prefs.getString('$_cookieKeyPrefix$domain');
   }
 
-  /// 删除网站的 Cookie
+  /// 删除网站的 Cookie（包括 SharedPreferences 和 WebView CookieManager）
+  /// 注意：WebView CookieManager 会清理所有 Cookie，因为 API 不支持按域名删除
   Future<void> removeCookie(String domain) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_cookieKeyPrefix$domain');
+    
+    // 清理 WebView CookieManager（会清理所有 Cookie）
+    // 这是因为 WebView CookieManager API 不支持按域名删除
+    await _clearWebViewCookies();
   }
 
   /// 检查是否有某个网站的 Cookie
@@ -53,15 +60,44 @@ class CookieService {
     return cookies;
   }
 
-  /// 清除所有 Cookie
+  /// 清除所有 Cookie（包括 SharedPreferences 和 WebView CookieManager）
   Future<void> clearAllCookies() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
 
+    // 1. 清理 SharedPreferences 中的 Cookie
     for (final key in keys) {
       if (key.startsWith(_cookieKeyPrefix)) {
         await prefs.remove(key);
       }
+    }
+
+    // 2. 清理 WebView CookieManager 中的所有 Cookie
+    await _clearWebViewCookies();
+  }
+
+  /// 清理 WebView CookieManager 中的所有 Cookie
+  Future<void> _clearWebViewCookies() async {
+    try {
+      final cookieManager = WebViewCookieManager();
+      await cookieManager.clearCookies();
+      print('WebView Cookie 已清理');
+    } catch (e) {
+      print('清理 WebView Cookie 失败: $e');
+    }
+  }
+
+  /// 清理指定域名的 WebView Cookie
+  Future<void> _clearWebViewCookiesForDomain(String domain) async {
+    try {
+      final cookieManager = WebViewCookieManager();
+      // WebView CookieManager 没有提供按域名删除的方法
+      // 所以我们需要先获取所有 Cookie，然后逐个删除
+      // 但由于 API 限制，这里采用重新加载登录页面的方式来触发新的 Cookie
+      // 更好的方式是在 WebView 页面打开时清理该域名的 Cookie
+      print('注意: WebView CookieManager 不支持按域名删除，建议重新打开登录页面');
+    } catch (e) {
+      print('清理指定域名 WebView Cookie 失败: $e');
     }
   }
 
