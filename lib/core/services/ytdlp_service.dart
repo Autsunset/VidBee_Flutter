@@ -7,6 +7,7 @@ import 'package:extractor/extractor.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/video_info.dart' as vidbee;
 import '../models/download_task.dart' as vidbee;
+import '../utils/app_logger.dart';
 import '../utils/event_bus.dart';
 import '../utils/media_scanner.dart';
 import 'cookie_service.dart';
@@ -34,17 +35,17 @@ class YtDlpService {
       if (result.success) {
         _isInitialized = true;
         _setupEventListeners();
-        
+
         // 初始化成功后自动更新 yt-dlp 到最新版本（带重试）
         await _ensureYtDlpUpdated();
-        
+
         return true;
       } else {
-        print('YtDlpService 初始化失败: ${result.errorMessage}');
+        AppLogger.error('YtDlpService 初始化失败', result.errorMessage);
         return false;
       }
     } catch (e) {
-      print('YtDlpService 初始化异常: $e');
+      AppLogger.error('YtDlpService 初始化异常', e);
       return false;
     }
   }
@@ -53,23 +54,23 @@ class YtDlpService {
   Future<void> _ensureYtDlpUpdated() async {
     for (int i = 0; i < 3; i++) {
       try {
-        print('正在自动更新 yt-dlp (尝试 ${i + 1}/3)...');
+        AppLogger.debug('正在自动更新 yt-dlp (尝试 ${i + 1}/3)...');
         final result = await _youtubeDL.updateYoutubeDL(
           channel: UpdateChannel.stable,
         );
         if (result.status == OperationStatus.success) {
-          print('yt-dlp 更新成功: ${result.version}');
+          AppLogger.debug('yt-dlp 更新成功: ${result.version}');
           return;
         } else {
-          print('yt-dlp 更新失败: ${result.errorMessage}');
+          AppLogger.error('yt-dlp 更新失败', result.errorMessage);
         }
       } catch (e) {
-        print('第${i + 1}次更新 yt-dlp 出错: $e');
+        AppLogger.error('第${i + 1}次更新 yt-dlp 出错', e);
       }
       // 等待2秒后重试
       await Future.delayed(Duration(seconds: 2));
     }
-    print('yt-dlp 自动更新失败，将使用内置版本');
+    AppLogger.error('yt-dlp 自动更新失败，将使用内置版本');
   }
 
   /// 设置事件监听器
@@ -134,11 +135,12 @@ class YtDlpService {
         // 检查用户是否已经设置了桌面端 UA
         if (!_isDesktopUA(effectiveUA)) {
           // Bilibili 强制使用桌面端 UA，避免 yt-dlp 内部重定向到移动端
-          const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+          const desktopUA =
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
           effectiveUA = desktopUA;
-          print('Bilibili 强制使用桌面端UA: $desktopUA');
+          AppLogger.debug('Bilibili 强制使用桌面端 UA');
         } else {
-          print('Bilibili 使用用户设置的桌面端UA');
+          AppLogger.debug('Bilibili 使用用户设置的桌面端 UA');
         }
       }
 
@@ -146,46 +148,48 @@ class YtDlpService {
       if (effectiveUA.isNotEmpty) {
         options['--user-agent'] = effectiveUA;
         if (!url.contains('bilibili.com')) {
-          print('使用自定义UA: $effectiveUA');
+          AppLogger.debug('使用自定义 UA');
         }
       }
 
       // 添加 Cookie 文件（按域名获取）
       final domain = cookieService.extractDomain(url);
-      print('提取到的域名: $domain');
-      
+      AppLogger.debug('提取到的域名: $domain');
+
       // 先尝试获取域名特定的 Cookie 文件
-      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(domain);
-      
+      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(
+        domain,
+      );
+
       // 如果没有找到，尝试获取通用 Cookie 文件（向后兼容）
       if (cookieFilePath == null || cookieFilePath.isEmpty) {
         cookieFilePath = await cookieService.getCookieFilePath();
       }
-      
+
       if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
         final cookieFile = File(cookieFilePath);
         if (await cookieFile.exists()) {
           final size = await cookieFile.length();
           if (size > 0) {
             options['--cookies'] = cookieFilePath;
-            print('解析时使用 Cookie 文件: $cookieFilePath (大小: $size bytes)');
-            // 打印文件内容前 500 字符用于调试
-            final content = await cookieFile.readAsString();
-            print('Cookie 文件内容预览:\n${content.substring(0, content.length > 500 ? 500 : content.length)}');
+            AppLogger.debug(
+              '解析时使用 Cookie 文件: $cookieFilePath (大小: $size bytes)',
+            );
+            AppLogger.debug('解析时 Cookie 文件可用，大小: $size bytes');
           } else {
-            print('Cookie 文件为空，跳过: $cookieFilePath');
+            AppLogger.debug('Cookie 文件为空，跳过: $cookieFilePath');
           }
         } else {
-          print('Cookie 文件不存在: $cookieFilePath');
+          AppLogger.debug('Cookie 文件不存在: $cookieFilePath');
         }
       } else {
-        print('未设置 Cookie 文件路径');
+        AppLogger.debug('未设置 Cookie 文件路径');
       }
 
       // Bilibili 需要 Referer
       if (url.contains('bilibili.com')) {
         options['--referer'] = 'https://www.bilibili.com';
-        print('使用 Bilibili Referer');
+        AppLogger.debug('使用 Bilibili Referer');
       }
 
       // 抖音/TikTok 可能需要特殊处理
@@ -195,23 +199,26 @@ class YtDlpService {
 
       // 使用 getVideoInfoWithOptions 传递自定义选项
       VideoInfo info;
-      print('准备解析 URL: $url');  // 调试打印
+      AppLogger.debug('准备解析 URL: $url');
       if (options.isNotEmpty) {
-        print('解析选项: $options');
+        AppLogger.debug('解析选项已设置: ${options.keys.join(', ')}');
         info = await _youtubeDL.getVideoInfoWithOptions(url, options);
       } else {
         info = await _youtubeDL.getVideoInfo(url);
       }
-      
+
       return _convertToVidbeeVideoInfo(info);
     } catch (e) {
-      print('获取视频信息失败: $e');
+      AppLogger.error('获取视频信息失败', e);
       return null;
     }
   }
 
   /// 开始下载
-  Future<String?> startDownload(vidbee.DownloadTask task, {String? customUA}) async {
+  Future<String?> startDownload(
+    vidbee.DownloadTask task, {
+    String? customUA,
+  }) async {
     if (!_isInitialized) {
       final initialized = await initialize();
       if (!initialized) return null;
@@ -220,20 +227,20 @@ class YtDlpService {
     try {
       // 优先使用任务中的下载路径，如果没有则使用默认路径
       String downloadPath = task.downloadPath ?? '';
-      
+
       if (downloadPath.isEmpty) {
         // 直接使用系统Downloads目录，这样其他应用也能看到
         downloadPath = '/storage/emulated/0/Download';
       }
-      
+
       // 确保下载目录存在
       final dir = Directory(downloadPath);
       if (!await dir.exists()) {
         try {
           await dir.create(recursive: true);
-          print('创建下载目录: $downloadPath');
+          AppLogger.debug('创建下载目录: $downloadPath');
         } catch (e) {
-          print('创建下载目录失败: $e');
+          AppLogger.error('创建下载目录失败', e);
           // 尝试使用应用私有目录作为备用
           try {
             final appDir = await getExternalStorageDirectory();
@@ -243,18 +250,18 @@ class YtDlpService {
               if (!await backupDir.exists()) {
                 await backupDir.create(recursive: true);
               }
-              print('使用备用下载目录: $downloadPath');
+              AppLogger.debug('使用备用下载目录: $downloadPath');
             }
           } catch (e2) {
-            print('创建备用目录也失败: $e2');
+            AppLogger.error('创建备用目录也失败', e2);
             return null;
           }
         }
       }
-      
-      print('开始下载: ${task.url}');
-      print('下载路径: $downloadPath');
-      
+
+      AppLogger.debug('开始下载: ${task.url}');
+      AppLogger.debug('下载路径: $downloadPath');
+
       // 确定下载格式
       String format;
       if (task.type == vidbee.DownloadType.audio) {
@@ -268,12 +275,12 @@ class YtDlpService {
         // 默认：最佳视频+最佳音频
         format = 'bestvideo+bestaudio/best';
       }
-      
-      print('格式: $format');
+
+      AppLogger.debug('格式: $format');
 
       // 使用VidBee_前缀 + 视频标题作为文件名，既保留标题又避免问题
       final outputTemplate = 'VidBee_%(title)s.%(ext)s';
-      print('输出文件名: $outputTemplate');
+      AppLogger.debug('输出文件名: $outputTemplate');
 
       final cookieService = CookieService();
       final customOptions = <String, String>{};
@@ -282,15 +289,19 @@ class YtDlpService {
       var downloadUrl = task.url;
       String effectiveUA = customUA ?? '';
       if (downloadUrl.contains('bilibili.com')) {
-        downloadUrl = downloadUrl.replaceFirst('m.bilibili.com', 'www.bilibili.com');
+        downloadUrl = downloadUrl.replaceFirst(
+          'm.bilibili.com',
+          'www.bilibili.com',
+        );
         // 检查用户是否已经设置了桌面端 UA
         if (!_isDesktopUA(effectiveUA)) {
           // Bilibili 必须使用桌面端 UA
-          const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+          const desktopUA =
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
           effectiveUA = desktopUA;
-          print('Bilibili 下载强制使用桌面端UA');
+          AppLogger.debug('Bilibili 下载强制使用桌面端 UA');
         } else {
-          print('Bilibili 下载使用用户设置的桌面端UA');
+          AppLogger.debug('Bilibili 下载使用用户设置的桌面端 UA');
         }
       }
 
@@ -298,27 +309,29 @@ class YtDlpService {
       if (effectiveUA.isNotEmpty) {
         customOptions['--user-agent'] = effectiveUA;
         if (!downloadUrl.contains('bilibili.com')) {
-          print('下载时使用自定义UA: $effectiveUA');
+          AppLogger.debug('下载时使用自定义 UA');
         }
       }
 
       // 添加 Cookie 文件（按域名获取）
       final downloadDomain = cookieService.extractDomain(downloadUrl);
-      print('下载时提取到的域名: $downloadDomain');
-      
+      AppLogger.debug('下载时提取到的域名: $downloadDomain');
+
       // 先尝试获取域名特定的 Cookie 文件
-      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(downloadDomain);
-      
+      String? cookieFilePath = await cookieService.getCookieFilePathForDomain(
+        downloadDomain,
+      );
+
       // 如果没有找到，尝试获取通用 Cookie 文件（向后兼容）
       if (cookieFilePath == null || cookieFilePath.isEmpty) {
         cookieFilePath = await cookieService.getCookieFilePath();
       }
-      
+
       if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
         final cookieFile = File(cookieFilePath);
         if (await cookieFile.exists()) {
           customOptions['--cookies'] = cookieFilePath;
-          print('下载时使用 Cookie 文件: $cookieFilePath');
+          AppLogger.debug('下载时使用 Cookie 文件: $cookieFilePath');
         }
       }
 
@@ -346,26 +359,29 @@ class YtDlpService {
       if (result.status == OperationStatus.success) {
         // 插件返回的是模板字符串，需要查找实际文件
         final actualPath = await _findDownloadedFile(downloadPath, task.id);
-        print('下载成功: ${actualPath ?? result.outputPath}');
-        
+        AppLogger.debug('下载成功: ${actualPath ?? result.outputPath}');
+
         // 通知系统媒体库扫描新文件
         if (actualPath != null) {
           await MediaScanner.scanFile(actualPath);
         }
-        
+
         return actualPath ?? result.outputPath;
       } else {
-        print('下载失败: ${result.errorMessage}');
+        AppLogger.error('下载失败', result.errorMessage);
         return null;
       }
     } catch (e) {
-      print('下载异常: $e');
+      AppLogger.error('下载异常', e);
       return null;
     }
   }
 
   /// 查找下载完成的文件
-  Future<String?> _findDownloadedFile(String downloadPath, String processId) async {
+  Future<String?> _findDownloadedFile(
+    String downloadPath,
+    String processId,
+  ) async {
     try {
       final dir = Directory(downloadPath);
       if (!await dir.exists()) {
@@ -374,13 +390,13 @@ class YtDlpService {
 
       // 获取目录中所有文件
       final files = await dir.list().toList();
-      
+
       // 找到最新的文件（按修改时间排序）
       final videoFiles = files
           .whereType<File>()
           .where((f) => !f.path.endsWith('.part') && !f.path.endsWith('.ytdl'))
           .toList();
-      
+
       if (videoFiles.isEmpty) {
         return null;
       }
@@ -394,7 +410,7 @@ class YtDlpService {
 
       return videoFiles.first.path;
     } catch (e) {
-      print('查找下载文件失败: $e');
+      AppLogger.error('查找下载文件失败', e);
       return null;
     }
   }
@@ -405,7 +421,7 @@ class YtDlpService {
       final cancelled = await _youtubeDL.cancelDownload(taskId);
       return cancelled;
     } catch (e) {
-      print('取消下载失败: $e');
+      AppLogger.error('取消下载失败', e);
       return false;
     }
   }
@@ -418,7 +434,7 @@ class YtDlpService {
       );
       return result.status == OperationStatus.success;
     } catch (e) {
-      print('更新 yt-dlp 失败: $e');
+      AppLogger.error('更新 yt-dlp 失败', e);
       return false;
     }
   }
@@ -433,7 +449,7 @@ class YtDlpService {
         'python': versionInfo.pythonVersion ?? 'Unknown',
       };
     } catch (e) {
-      print('获取版本信息失败: $e');
+      AppLogger.error('获取版本信息失败', e);
       return {};
     }
   }
@@ -448,46 +464,48 @@ class YtDlpService {
     }
 
     final result = <String, dynamic>{};
-    
+
     // 1. 获取 yt-dlp 版本
     try {
       final version = await getVersionInfo();
       result['version'] = version;
-      print('当前 yt-dlp 版本: ${version['yt-dlp']}');
+      AppLogger.debug('当前 yt-dlp 版本: ${version['yt-dlp']}');
     } catch (e) {
       result['version_error'] = e.toString();
     }
 
     // 2. 尝试解析视频
     try {
-      print('正在测试解析: $url');
+      AppLogger.debug('正在测试解析: $url');
       final info = await _youtubeDL.getVideoInfo(url);
       result['parse_success'] = true;
       result['title'] = info.title;
       result['duration'] = info.duration;
       result['uploader'] = info.uploader;
       result['formats_count'] = info.formats?.length ?? 0;
-      print('解析成功: ${info.title}');
+      AppLogger.debug('解析成功: ${info.title}');
     } catch (e) {
       result['parse_success'] = false;
       result['parse_error'] = e.toString();
-      print('解析失败: $e');
+      AppLogger.error('解析失败', e);
     }
 
     // 3. 检查是否需要更新
     try {
-      final updateResult = await _youtubeDL.updateYoutubeDL(channel: UpdateChannel.stable);
+      final updateResult = await _youtubeDL.updateYoutubeDL(
+        channel: UpdateChannel.stable,
+      );
       result['update_status'] = updateResult.status.toString();
       result['update_version'] = updateResult.version;
       if (updateResult.status == OperationStatus.success) {
-        print('yt-dlp 已更新到: ${updateResult.version}');
+        AppLogger.debug('yt-dlp 已更新到: ${updateResult.version}');
       } else {
-        print('yt-dlp 更新失败: ${updateResult.errorMessage}');
+        AppLogger.error('yt-dlp 更新失败', updateResult.errorMessage);
         result['update_error'] = updateResult.errorMessage;
       }
     } catch (e) {
       result['update_error'] = e.toString();
-      print('更新出错: $e');
+      AppLogger.error('更新出错', e);
     }
 
     return result;
@@ -495,26 +513,29 @@ class YtDlpService {
 
   /// 转换为 VidBee VideoInfo 格式
   vidbee.VideoInfo _convertToVidbeeVideoInfo(VideoInfo info) {
-    final formats = info.formats
+    final formats =
+        info.formats
             ?.where((f) => f != null)
-            .map((f) => vidbee.VideoFormat(
-                  formatId: f!.formatId ?? '',
-                  ext: f.ext ?? '',
-                  width: f.width,
-                  height: f.height,
-                  fps: f.fps,
-                  vcodec: f.vcodec,
-                  acodec: f.acodec,
-                  filesize: f.filesize,
-                  filesizeApprox: null,
-                  formatNote: f.formatNote,
-                  tbr: f.tbr,
-                  quality: null,
-                  protocol: null,
-                  language: null,
-                  videoExt: null,
-                  audioExt: null,
-                ))
+            .map(
+              (f) => vidbee.VideoFormat(
+                formatId: f!.formatId ?? '',
+                ext: f.ext ?? '',
+                width: f.width,
+                height: f.height,
+                fps: f.fps,
+                vcodec: f.vcodec,
+                acodec: f.acodec,
+                filesize: f.filesize,
+                filesizeApprox: null,
+                formatNote: f.formatNote,
+                tbr: f.tbr,
+                quality: null,
+                protocol: null,
+                language: null,
+                videoExt: null,
+                audioExt: null,
+              ),
+            )
             .toList() ??
         [];
 
@@ -557,14 +578,20 @@ class YtDlpService {
       'windows phone',
     ];
     // 如果包含桌面端标识且不包含移动端标识，认为是桌面端 UA
-    final hasDesktop = desktopKeywords.any((keyword) => lowerUA.contains(keyword));
-    final hasMobile = mobileKeywords.any((keyword) => lowerUA.contains(keyword));
+    final hasDesktop = desktopKeywords.any(
+      (keyword) => lowerUA.contains(keyword),
+    );
+    final hasMobile = mobileKeywords.any(
+      (keyword) => lowerUA.contains(keyword),
+    );
     return hasDesktop && !hasMobile;
   }
 
   /// 清理资源
   void dispose() {
-    _subscriptions.values.forEach((sub) => sub.cancel());
+    for (final sub in _subscriptions.values) {
+      sub.cancel();
+    }
     _subscriptions.clear();
   }
 }

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/services/cookie_service.dart';
+import '../../core/utils/app_logger.dart';
 
 class WebViewLoginPage extends StatefulWidget {
   final String title;
@@ -47,9 +48,9 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     try {
       final cookieManager = WebViewCookieManager();
       await cookieManager.clearCookies();
-      print('WebView Cookie 已清理，准备加载登录页面');
+      AppLogger.debug('WebView Cookie 已清理，准备加载登录页面');
     } catch (e) {
-      print('清理 WebView Cookie 失败: $e');
+      AppLogger.error('清理 WebView Cookie 失败', e);
     }
     _initWebView();
   }
@@ -58,7 +59,8 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
-        widget.userAgent ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        widget.userAgent ??
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -75,17 +77,17 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             });
           },
           onWebResourceError: (WebResourceError error) {
-            print('WebView 加载错误:');
-            print('  描述: ${error.description}');
-            print('  错误码: ${error.errorCode}');
-            print('  错误类型: ${error.errorType}');
-            print('  URL: ${error.url}');
-            
+            AppLogger.error('WebView 加载错误');
+            AppLogger.error('WebView 错误描述', error.description);
+            AppLogger.error('WebView 错误码', error.errorCode);
+            AppLogger.error('WebView 错误类型', error.errorType);
+            AppLogger.error('WebView 错误 URL', error.url);
+
             if (mounted) {
               setState(() {
                 _isLoading = false;
                 String errorMsg = '加载失败';
-                
+
                 // 根据错误码提供更详细的错误信息
                 switch (error.errorCode) {
                   case -1:
@@ -112,16 +114,16 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                   default:
                     errorMsg = '加载失败: ${error.description}';
                 }
-                
+
                 _statusMessage = '$errorMsg (错误码: ${error.errorCode})';
               });
             }
           },
           onNavigationRequest: (NavigationRequest request) {
             // 如果跳转到指定的成功 URL，说明登录成功
-            if (widget.successUrl != null && 
-                (request.url == widget.successUrl || 
-                 request.url.startsWith(widget.successUrl!))) {
+            if (widget.successUrl != null &&
+                (request.url == widget.successUrl ||
+                    request.url.startsWith(widget.successUrl!))) {
               _onLoginSuccess();
               return NavigationDecision.prevent;
             }
@@ -130,36 +132,6 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
         ),
       )
       ..loadRequest(Uri.parse(widget.loginUrl));
-  }
-
-  /// 检查登录状态 - 仅在用户点击"检查登录"时调用
-  Future<void> _checkLoginStatus() async {
-    try {
-      // 获取 Cookie
-      final cookies = await _controller.runJavaScriptReturningResult(
-        'document.cookie',
-      );
-
-      final cookieString = cookies.toString();
-
-      print('获取到的 Cookie: $cookieString');
-
-      if (cookieString.isNotEmpty) {
-        // 直接保存，不管有没有检测到特定的登录 Cookie
-        if (!_loginDetected) {
-          _loginDetected = true;
-          await _saveCookies(cookieString);
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('未检测到登录状态，请先登录')),
-          );
-        }
-      }
-    } catch (e) {
-      print('检查登录状态失败: $e');
-    }
   }
 
   /// 保存 Cookie
@@ -186,7 +158,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
         });
       }
     } catch (e) {
-      print('保存 Cookie 失败: $e');
+      AppLogger.error('保存 Cookie 失败', e);
       if (mounted) {
         setState(() {
           _statusMessage = '❌ 保存 Cookie 失败: $e';
@@ -205,7 +177,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
 
       await _saveCookies(cookies.toString());
     } catch (e) {
-      print('获取 Cookie 失败: $e');
+      AppLogger.error('获取 Cookie 失败', e);
     }
   }
 
@@ -223,26 +195,26 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                   'document.cookie',
                 );
                 final cookieString = cookies.toString();
-                
-                print('手动保存 Cookie: $cookieString');
-                
+
+                AppLogger.debug('手动保存 Cookie: 已获取 Cookie');
+
                 if (cookieString.isNotEmpty) {
                   // 直接保存，不管有没有检测到登录状态
                   _loginDetected = true;
                   await _saveCookies(cookieString);
                 } else {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('未检测到 Cookie，请先在页面中登录')),
                     );
                   }
                 }
               } catch (e) {
-                print('获取 Cookie 失败: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('获取 Cookie 失败: $e')),
-                  );
+                AppLogger.error('获取 Cookie 失败', e);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('获取 Cookie 失败: $e')));
                 }
               }
             },
@@ -257,10 +229,10 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             color: _loginDetected
-                ? Colors.green.withOpacity(0.1)
+                ? Colors.green.withValues(alpha: 0.1)
                 : _statusMessage.contains('失败')
-                    ? Colors.red.withOpacity(0.1)
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                ? Colors.red.withValues(alpha: 0.1)
+                : Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Row(
               children: [
                 if (_isLoading)
@@ -274,14 +246,14 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                     _loginDetected
                         ? Icons.check_circle
                         : _statusMessage.contains('失败')
-                            ? Icons.error_outline
-                            : Icons.info_outline,
+                        ? Icons.error_outline
+                        : Icons.info_outline,
                     size: 16,
                     color: _loginDetected
                         ? Colors.green
                         : _statusMessage.contains('失败')
-                            ? Colors.red
-                            : null,
+                        ? Colors.red
+                        : null,
                   ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -291,7 +263,8 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                   ),
                 ),
                 // 错误时显示重试按钮
-                if (_statusMessage.contains('失败') || _statusMessage.contains('错误'))
+                if (_statusMessage.contains('失败') ||
+                    _statusMessage.contains('错误'))
                   TextButton.icon(
                     onPressed: () {
                       setState(() {
@@ -308,9 +281,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
           ),
 
           // WebView
-          Expanded(
-            child: WebViewWidget(controller: _controller),
-          ),
+          Expanded(child: WebViewWidget(controller: _controller)),
         ],
       ),
     );

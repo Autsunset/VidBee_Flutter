@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/providers.dart';
 import '../../core/models/models.dart';
 import '../../core/services/cookie_service.dart';
+import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../shared/i18n/app_localizations.dart';
 
@@ -107,7 +108,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
           )
         else
           FilledButton(
-            onPressed: isLoading ? null : () => _startDownload(videoInfo, selectedFormat),
+            onPressed: isLoading
+                ? null
+                : () => _startDownload(videoInfo, selectedFormat),
             child: Text(loc.download),
           ),
       ],
@@ -166,8 +169,13 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     );
   }
 
-  Widget _buildFormatSelector(VideoInfo videoInfo, VideoFormat? selectedFormat) {
-    final formats = _isAudioOnly ? videoInfo.bestAudioFormats : videoInfo.bestVideoFormats;
+  Widget _buildFormatSelector(
+    VideoInfo videoInfo,
+    VideoFormat? selectedFormat,
+  ) {
+    final formats = _isAudioOnly
+        ? videoInfo.bestAudioFormats
+        : videoInfo.bestVideoFormats;
 
     if (formats.isEmpty) {
       return Text(AppLocalizations.of(context)!.noAvailableFormat);
@@ -180,7 +188,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _isAudioOnly ? AppLocalizations.of(context)!.selectAudioQuality : AppLocalizations.of(context)!.selectVideoQuality,
+          _isAudioOnly
+              ? AppLocalizations.of(context)!.selectAudioQuality
+              : AppLocalizations.of(context)!.selectVideoQuality,
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
@@ -193,13 +203,13 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
             final isSelected = selectedFormat?.formatId == format.formatId;
             // 对于 Bilibili，只有第一个（最高质量）格式需要登录
             final requiresLogin = domain.contains('bilibili.com') && index == 0;
-            
+
             return FutureBuilder<bool>(
               future: _cookieService.hasCookie(domain),
               builder: (context, snapshot) {
                 final hasCookie = snapshot.data ?? false;
                 final isDisabled = requiresLogin && !hasCookie;
-                
+
                 return FilterChip(
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -210,8 +220,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                         Icon(
                           hasCookie ? Icons.verified : Icons.lock,
                           size: 14,
-                          color: hasCookie 
-                              ? Colors.green 
+                          color: hasCookie
+                              ? Colors.green
                               : Theme.of(context).colorScheme.error,
                         ),
                       ],
@@ -222,7 +232,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                       ? null
                       : (selected) {
                           if (selected) {
-                            ref.read(selectedFormatProvider.notifier).state = format;
+                            ref.read(selectedFormatProvider.notifier).state =
+                                format;
                           }
                         },
                 );
@@ -240,8 +251,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                 child: Text(
                   AppLocalizations.of(context)!.highQualityRequiresLogin,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               );
             }
@@ -254,7 +265,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
 
   String _getFormatLabel(VideoFormat format) {
     final parts = <String>[];
-    
+
     // 优先显示分辨率或码率
     if (!format.hasVideo) {
       // 音频格式：优先显示比特率
@@ -269,7 +280,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       // 视频格式：显示分辨率和比特率
       if (format.height != null && format.height! > 0) {
         parts.add('${format.height}p');
-      } else if (format.width != null && format.height != null && format.width! > 0 && format.height! > 0) {
+      } else if (format.width != null &&
+          format.height != null &&
+          format.width! > 0 &&
+          format.height! > 0) {
         parts.add('${format.width}x${format.height}');
       } else if (format.formatNote != null) {
         parts.add(format.formatNote!);
@@ -279,17 +293,17 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         parts.add('${format.tbr}k');
       }
     }
-    
+
     if (format.ext.isNotEmpty) {
       parts.add(format.ext.toUpperCase());
     }
-    
+
     if (format.filesize != null) {
       parts.add(_formatFileSize(format.filesize!));
     } else if (format.filesizeApprox != null) {
       parts.add(_formatFileSize(format.filesizeApprox!));
     }
-    
+
     return parts.isEmpty ? format.formatId : parts.join(' • ');
   }
 
@@ -324,38 +338,38 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       if (videoInfo != null) {
         ref.read(currentVideoInfoProvider.notifier).state = videoInfo;
         // 默认选择第一个格式
-        final formats = _isAudioOnly ? videoInfo.bestAudioFormats : videoInfo.bestVideoFormats;
+        final formats = _isAudioOnly
+            ? videoInfo.bestAudioFormats
+            : videoInfo.bestVideoFormats;
         if (formats.isNotEmpty) {
           ref.read(selectedFormatProvider.notifier).state = formats.first;
         }
       } else {
-        // 解析失败，显示错误提示
-        if (mounted) {
-          final domain = _cookieService.extractDomain(url);
-          final hasCookie = await _cookieService.hasCookie(domain);
-          final loc = AppLocalizations.of(context)!;
-          
-          String errorMessage;
-          if (domain.contains('douyin.com') || domain.contains('youtube.com')) {
-            if (hasCookie) {
-              errorMessage = loc.parseFailedExpired;
-            } else {
-              errorMessage = loc.parseFailedFresh;
-            }
-          } else if (domain.contains('bilibili.com')) {
-            errorMessage = loc.parseFailedBilibili;
+        final domain = _cookieService.extractDomain(url);
+        final hasCookie = await _cookieService.hasCookie(domain);
+        if (!mounted) return;
+        final loc = AppLocalizations.of(context)!;
+
+        String errorMessage;
+        if (domain.contains('douyin.com') || domain.contains('youtube.com')) {
+          if (hasCookie) {
+            errorMessage = loc.parseFailedExpired;
           } else {
-            errorMessage = loc.parseFailedDefault;
+            errorMessage = loc.parseFailedFresh;
           }
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              duration: const Duration(seconds: 8),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
+        } else if (domain.contains('bilibili.com')) {
+          errorMessage = loc.parseFailedBilibili;
+        } else {
+          errorMessage = loc.parseFailedDefault;
         }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 8),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
@@ -426,7 +440,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         }
         // 将移动端域名转换为桌面端域名
         url = _convertMobileToDesktopUrl(url);
-        print('提取到的 URL: $url');
+        AppLogger.debug('提取到的 URL: $url');
         return url;
       }
     }
@@ -447,9 +461,13 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     return url;
   }
 
-  Future<void> _startDownload(VideoInfo videoInfo, VideoFormat? selectedFormat) async {
+  Future<void> _startDownload(
+    VideoInfo videoInfo,
+    VideoFormat? selectedFormat,
+  ) async {
     // 先检查是否有管理存储权限
-    final hasPermission = await PermissionHelper.checkManageExternalStoragePermission();
+    final hasPermission =
+        await PermissionHelper.checkManageExternalStoragePermission();
     if (!hasPermission && mounted) {
       final loc = AppLocalizations.of(context)!;
       // 如果没有权限，提示用户去设置
@@ -466,10 +484,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
 
     final downloadService = ref.read(downloadServiceProvider);
     final downloadPath = ref.read(downloadPathProvider);
-    
+
     // 使用补全后的 URL
     final url = _normalizeUrl(_urlController.text.trim());
-    
+
     await downloadService.addTask(
       url: url,
       type: _isAudioOnly ? DownloadType.audio : DownloadType.video,
@@ -483,7 +501,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     );
 
     // 刷新任务列表
-    ref.read(downloadTasksProvider.notifier).state = downloadService.getAllTasks();
+    ref.read(downloadTasksProvider.notifier).state = downloadService
+        .getAllTasks();
 
     if (mounted) {
       _resetAndClose();

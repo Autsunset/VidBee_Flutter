@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 // 仅在 Android/iOS 平台导入 WebView Cookie 管理
 import 'package:webview_flutter/webview_flutter.dart';
+import '../utils/app_logger.dart';
 
 class CookieService {
   static final CookieService _instance = CookieService._internal();
@@ -12,7 +13,8 @@ class CookieService {
 
   static const String _cookieKeyPrefix = 'cookie_';
   static const String _cookieFilePathKey = 'cookie_file_path';
-  static const String _cookieFilePathPrefix = 'cookie_file_path_';  // 按域名存储 Cookie 文件路径
+  static const String _cookieFilePathPrefix =
+      'cookie_file_path_'; // 按域名存储 Cookie 文件路径
 
   /// 保存网站的 Cookie
   Future<void> saveCookie(String domain, String cookie) async {
@@ -31,7 +33,7 @@ class CookieService {
   Future<void> removeCookie(String domain) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_cookieKeyPrefix$domain');
-    
+
     // 清理 WebView CookieManager（会清理所有 Cookie）
     // 这是因为 WebView CookieManager API 不支持按域名删除
     await _clearWebViewCookies();
@@ -83,23 +85,9 @@ class CookieService {
     try {
       final cookieManager = WebViewCookieManager();
       await cookieManager.clearCookies();
-      print('WebView Cookie 已清理');
+      AppLogger.debug('WebView Cookie 已清理');
     } catch (e) {
-      print('清理 WebView Cookie 失败: $e');
-    }
-  }
-
-  /// 清理指定域名的 WebView Cookie
-  Future<void> _clearWebViewCookiesForDomain(String domain) async {
-    try {
-      final cookieManager = WebViewCookieManager();
-      // WebView CookieManager 没有提供按域名删除的方法
-      // 所以我们需要先获取所有 Cookie，然后逐个删除
-      // 但由于 API 限制，这里采用重新加载登录页面的方式来触发新的 Cookie
-      // 更好的方式是在 WebView 页面打开时清理该域名的 Cookie
-      print('注意: WebView CookieManager 不支持按域名删除，建议重新打开登录页面');
-    } catch (e) {
-      print('清理指定域名 WebView Cookie 失败: $e');
+      AppLogger.error('清理 WebView Cookie 失败', e);
     }
   }
 
@@ -108,12 +96,12 @@ class CookieService {
     try {
       final uri = Uri.parse(url);
       var host = uri.host;
-      
+
       // 移除 www. 前缀
       if (host.startsWith('www.')) {
         host = host.substring(4);
       }
-      
+
       return host;
     } catch (e) {
       return '';
@@ -126,19 +114,31 @@ class CookieService {
     // Bilibili 的高清晰度格式
     if (domain.contains('bilibili.com')) {
       // 1080p+ 格式需要登录
-      final highQualityFormats = ['64', '80', '112', '116', '120', '125', '126', '127', '30280', '30232', '30216'];
+      final highQualityFormats = [
+        '64',
+        '80',
+        '112',
+        '116',
+        '120',
+        '125',
+        '126',
+        '127',
+        '30280',
+        '30232',
+        '30216',
+      ];
       if (highQualityFormats.any((f) => formatId.contains(f))) {
         return true;
       }
     }
-    
+
     return false;
   }
 
   /// 检测已安装的浏览器
   Future<List<String>> detectBrowsers() async {
     final browsers = <String>[];
-    
+
     if (Platform.isAndroid) {
       // 检查常见浏览器包名
       final browserPackages = [
@@ -150,7 +150,7 @@ class CookieService {
         'com.vivaldi.browser',
         'com.yandex.browser',
       ];
-      
+
       for (final package in browserPackages) {
         try {
           final result = await Process.run('pm', ['list', 'packages', package]);
@@ -158,7 +158,7 @@ class CookieService {
             browsers.add(_getBrowserName(package));
           }
         } catch (e) {
-          print('检查浏览器 $package 失败: $e');
+          AppLogger.error('检查浏览器 $package 失败', e);
         }
       }
     } else if (Platform.isWindows) {
@@ -170,34 +170,36 @@ class CookieService {
         r'C:\Program Files (x86)\Mozilla Firefox\firefox.exe',
         r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
       ];
-      
+
       for (final path in browserPaths) {
         if (File(path).existsSync()) {
           browsers.add(_getWindowsBrowserName(path));
         }
       }
     }
-    
+
     return browsers;
   }
 
   /// 从浏览器提取 Cookie
-  Future<Map<String, String>?> extractCookiesFromBrowser(String browserName) async {
+  Future<Map<String, String>?> extractCookiesFromBrowser(
+    String browserName,
+  ) async {
     try {
       if (Platform.isAndroid) {
         // Android 下的 Cookie 提取
         // 注意：这需要 root 权限或者特殊的访问权限
         // 这里只是示例，实际实现需要更复杂的逻辑
-        print('从 $browserName 提取 Cookie (Android)');
+        AppLogger.debug('从 $browserName 提取 Cookie (Android)');
         // 实际实现需要访问浏览器的 Cookie 数据库
       } else if (Platform.isWindows) {
         // Windows 下的 Cookie 提取
-        print('从 $browserName 提取 Cookie (Windows)');
+        AppLogger.debug('从 $browserName 提取 Cookie (Windows)');
         // 实际实现需要读取浏览器的 Cookie 文件
       }
       return null;
     } catch (e) {
-      print('提取 Cookie 失败: $e');
+      AppLogger.error('提取 Cookie 失败', e);
       return null;
     }
   }
@@ -210,7 +212,7 @@ class CookieService {
       await file.writeAsString(_serializeCookies(cookies));
       return filePath;
     } catch (e) {
-      print('导出 Cookie 失败: $e');
+      AppLogger.error('导出 Cookie 失败', e);
       return null;
     }
   }
@@ -222,17 +224,17 @@ class CookieService {
       if (!await file.exists()) {
         return false;
       }
-      
+
       final content = await file.readAsString();
       final cookies = _deserializeCookies(content);
-      
+
       for (final entry in cookies.entries) {
         await saveCookie(entry.key, entry.value);
       }
-      
+
       return true;
     } catch (e) {
-      print('导入 Cookie 失败: $e');
+      AppLogger.error('导入 Cookie 失败', e);
       return false;
     }
   }
@@ -240,13 +242,13 @@ class CookieService {
   /// 从 Netscape 格式 cookies.txt 文件导入 Cookie
   /// 标准格式：# Netscape HTTP Cookie File 开头，每行 7 列（Tab 分隔）
   /// 列：domain\tflag\tpath\tsecure\texpiry\tname\tvalue
-  /// 
+  ///
   /// 支持多网站：会按域名分别存储 Cookie 文件，不会互相覆盖
   Future<bool> importNetscapeCookieFile(String filePath) async {
     try {
       final file = File(filePath);
       if (!await file.exists()) {
-        print('Cookie 文件不存在: $filePath');
+        AppLogger.debug('Cookie 文件不存在: $filePath');
         return false;
       }
 
@@ -284,7 +286,7 @@ class CookieService {
       }
 
       if (domainCookieLines.isEmpty) {
-        print('未找到有效的 Cookie 条目');
+        AppLogger.debug('未找到有效的 Cookie 条目');
         return false;
       }
 
@@ -295,7 +297,7 @@ class CookieService {
       for (final entry in domainCookieLines.entries) {
         final domain = entry.key;
         final cookieList = entry.value;
-        
+
         // 1. 保存到 SharedPreferences（用于显示）
         final cookieStr = cookieList.join('; ');
         await saveCookie(domain, cookieStr);
@@ -309,7 +311,11 @@ class CookieService {
         buffer.writeln();
 
         // 计算过期时间（30天后）
-        final expiry = DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
+        final expiry =
+            DateTime.now()
+                .add(const Duration(days: 30))
+                .millisecondsSinceEpoch ~/
+            1000;
 
         // 写入该域名的所有 cookie
         for (final cookieStr in cookieList) {
@@ -324,27 +330,29 @@ class CookieService {
         }
 
         await domainCookieFile.writeAsString(buffer.toString());
-        
+
         // 3. 保存该域名的 Cookie 文件路径
         await setCookieFilePathForDomain(domain, domainCookieFile.path);
-        
-        print('域名 $domain 的 Cookie 已保存到: ${domainCookieFile.path}');
+
+        AppLogger.debug('域名 $domain 的 Cookie 已保存到: ${domainCookieFile.path}');
       }
 
       // 同时保存原始文件路径（向后兼容）
       await setCookieFilePath(filePath);
 
-      print('Netscape Cookie 文件导入成功，共解析 ${domainCookieLines.length} 个域名');
+      AppLogger.debug(
+        'Netscape Cookie 文件导入成功，共解析 ${domainCookieLines.length} 个域名',
+      );
       return true;
     } catch (e) {
-      print('导入 Netscape Cookie 文件失败: $e');
+      AppLogger.error('导入 Netscape Cookie 文件失败', e);
       return false;
     }
   }
 
   /// 获取已保存的 Cookie 文件路径（供 yt-dlp 使用）
   /// 注意：此方法返回最后导入的 Cookie 文件路径，已废弃，请使用 getCookieFilePathForDomain
-  @deprecated
+  @Deprecated('Use getCookieFilePathForDomain instead.')
   Future<String?> getCookieFilePath() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_cookieFilePathKey);
@@ -352,7 +360,7 @@ class CookieService {
 
   /// 保存 Cookie 文件路径
   /// 注意：此方法会覆盖全局 Cookie 文件路径，已废弃，请使用 setCookieFilePathForDomain
-  @deprecated
+  @Deprecated('Use setCookieFilePathForDomain instead.')
   Future<void> setCookieFilePath(String path) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_cookieFilePathKey, path);
@@ -360,7 +368,7 @@ class CookieService {
 
   /// 清除已保存的 Cookie 文件路径（不删除实际文件）
   /// 注意：此方法清除全局 Cookie 文件路径，已废弃，请使用 clearCookieFileForDomain
-  @deprecated
+  @Deprecated('Use clearCookieFileForDomain instead.')
   Future<void> clearCookieFile() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cookieFilePathKey);
@@ -430,7 +438,7 @@ class CookieService {
         final normalizedDomain = _normalizeDomain(domain);
         // 查找匹配的域名
         for (final entry in allPaths.entries) {
-          if (entry.key == normalizedDomain || 
+          if (entry.key == normalizedDomain ||
               normalizedDomain.endsWith(entry.key) ||
               entry.key.endsWith(normalizedDomain)) {
             final file = File(entry.value);
@@ -466,8 +474,8 @@ class CookieService {
         for (final line in lines) {
           final trimmed = line.trim();
           // 跳过注释行和空行，避免重复
-          if (trimmed.isNotEmpty && 
-              !trimmed.startsWith('#') && 
+          if (trimmed.isNotEmpty &&
+              !trimmed.startsWith('#') &&
               !processedLines.contains(trimmed)) {
             buffer.writeln(trimmed);
             processedLines.add(trimmed);
@@ -478,7 +486,7 @@ class CookieService {
       await mergedFile.writeAsString(buffer.toString());
       return mergedFile.path;
     } catch (e) {
-      print('合并 Cookie 文件失败: $e');
+      AppLogger.error('合并 Cookie 文件失败', e);
       return null;
     }
   }
@@ -535,4 +543,3 @@ class CookieService {
     return 'Unknown';
   }
 }
-

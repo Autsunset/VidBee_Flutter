@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/services/cookie_service.dart';
+import '../../core/utils/app_logger.dart';
 
 class BilibiliLoginPage extends StatefulWidget {
   const BilibiliLoginPage({super.key});
@@ -50,7 +51,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       // 没有有效 Cookie，进入登录流程
       _clearWebViewCookiesAndInit();
     } catch (e) {
-      print('检查 Cookie 失败: $e');
+      AppLogger.error('检查 Cookie 失败', e);
       _clearWebViewCookiesAndInit();
     }
   }
@@ -63,17 +64,18 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
     try {
       final cookieManager = WebViewCookieManager();
       await cookieManager.clearCookies();
-      print('WebView Cookie 已清理，准备加载登录页面');
+      AppLogger.debug('WebView Cookie 已清理，准备加载登录页面');
     } catch (e) {
-      print('清理 WebView Cookie 失败: $e');
+      AppLogger.error('清理 WebView Cookie 失败', e);
     }
     _initWebView();
   }
 
   void _initWebView() {
     // 桌面端 UA，Bilibili 必须使用桌面端 UA 才能正确提取 Cookie
-    const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    
+    const desktopUA =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(desktopUA)
@@ -125,7 +127,8 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       final cookieString = cookies.toString();
 
       // 检查是否有登录相关的 Cookie
-      if (cookieString.contains('SESSDATA') && cookieString.contains('bili_jct')) {
+      if (cookieString.contains('SESSDATA') &&
+          cookieString.contains('bili_jct')) {
         // 已登录
         if (!_loginDetected) {
           _loginDetected = true;
@@ -133,7 +136,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
         }
       }
     } catch (e) {
-      print('检查登录状态失败: $e');
+      AppLogger.error('检查登录状态失败', e);
     }
   }
 
@@ -153,10 +156,13 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       final cookieFilePath = await _exportNetscapeCookieFile(cleanCookies);
       if (cookieFilePath != null) {
         // 使用新的按域名存储方法
-        await _cookieService.setCookieFilePathForDomain('bilibili.com', cookieFilePath);
+        await _cookieService.setCookieFilePathForDomain(
+          'bilibili.com',
+          cookieFilePath,
+        );
         // 同时保存到通用路径（向后兼容）
         await _cookieService.setCookieFilePath(cookieFilePath);
-        print('Cookie 文件已导出: $cookieFilePath');
+        AppLogger.debug('Cookie 文件已导出: $cookieFilePath');
       }
 
       if (mounted) {
@@ -172,7 +178,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
         });
       }
     } catch (e) {
-      print('保存 Cookie 失败: $e');
+      AppLogger.error('保存 Cookie 失败', e);
       if (mounted) {
         setState(() {
           _statusMessage = '❌ 保存 Cookie 失败: $e';
@@ -195,7 +201,9 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       buffer.writeln();
 
       // 计算过期时间（30天后）
-      final expiry = DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000;
+      final expiry =
+          DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/
+          1000;
 
       // 解析 Cookie 字符串并写入
       final cookies = cookieString.split(';');
@@ -207,14 +215,22 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
           if (name.isNotEmpty && value.isNotEmpty) {
             // Netscape 格式: domain	flag	path	secure	expiry	name	value
             // 同时添加 .bilibili.com 和 bilibili.com 两种域名格式
-            buffer.writeln('.bilibili.com\tTRUE\t/\tFALSE\t$expiry\t$name\t$value');
-            buffer.writeln('bilibili.com\tFALSE\t/\tFALSE\t$expiry\t$name\t$value');
+            buffer.writeln(
+              '.bilibili.com\tTRUE\t/\tFALSE\t$expiry\t$name\t$value',
+            );
+            buffer.writeln(
+              'bilibili.com\tFALSE\t/\tFALSE\t$expiry\t$name\t$value',
+            );
           }
         }
       }
 
       // 添加一些 Bilibili 常用的子域名
-      final subDomains = ['www.bilibili.com', 'passport.bilibili.com', 'api.bilibili.com'];
+      final subDomains = [
+        'www.bilibili.com',
+        'passport.bilibili.com',
+        'api.bilibili.com',
+      ];
       for (final domain in subDomains) {
         for (final cookie in cookies) {
           final parts = cookie.trim().split('=');
@@ -222,17 +238,19 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
             final name = parts[0].trim();
             final value = parts.sublist(1).join('=').trim();
             if (name.isNotEmpty && value.isNotEmpty) {
-              buffer.writeln('$domain\tFALSE\t/\tFALSE\t$expiry\t$name\t$value');
+              buffer.writeln(
+                '$domain\tFALSE\t/\tFALSE\t$expiry\t$name\t$value',
+              );
             }
           }
         }
       }
 
       await cookieFile.writeAsString(buffer.toString());
-      print('Cookie 文件内容预览:\n${buffer.toString().substring(0, buffer.length > 500 ? 500 : buffer.length)}...');
+      AppLogger.debug('Cookie 文件已生成: ${cookieFile.path}');
       return cookieFile.path;
     } catch (e) {
-      print('导出 Cookie 文件失败: $e');
+      AppLogger.error('导出 Cookie 文件失败', e);
       return null;
     }
   }
@@ -249,7 +267,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
 
       await _saveCookies(cookies.toString());
     } catch (e) {
-      print('获取 Cookie 失败: $e');
+      AppLogger.error('获取 Cookie 失败', e);
     }
   }
 
@@ -264,7 +282,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
           await file.delete();
         }
       } catch (e) {
-        print('删除 Cookie 文件失败: $e');
+        AppLogger.error('删除 Cookie 文件失败', e);
       }
     }
 
@@ -289,21 +307,17 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
             TextButton(
               onPressed: () async {
                 await _checkLoginStatus();
-                if (!_loginDetected) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('未检测到登录状态，请先登录')),
-                    );
-                  }
+                if (!_loginDetected && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('未检测到登录状态，请先登录')),
+                  );
                 }
               },
               child: const Text('检查登录'),
             ),
         ],
       ),
-      body: _hasExistingCookie
-          ? _buildExistingCookieView()
-          : _buildLoginView(),
+      body: _hasExistingCookie ? _buildExistingCookieView() : _buildLoginView(),
     );
   }
 
@@ -315,11 +329,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 64,
-              color: Colors.green,
-            ),
+            Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
             const SizedBox(height: 16),
             Text(
               '已登录 Bilibili',
@@ -358,7 +368,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           color: _loginDetected
-              ? Colors.green.withOpacity(0.1)
+              ? Colors.green.withValues(alpha: 0.1)
               : Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Row(
             children: [

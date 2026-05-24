@@ -49,10 +49,7 @@ class DownloadStatusChangedEvent {
   final String taskId;
   final DownloadStatus status;
 
-  DownloadStatusChangedEvent({
-    required this.taskId,
-    required this.status,
-  });
+  DownloadStatusChangedEvent({required this.taskId, required this.status});
 }
 
 /// 下载错误事件
@@ -60,10 +57,7 @@ class DownloadErrorEvent {
   final String taskId;
   final String error;
 
-  DownloadErrorEvent({
-    required this.taskId,
-    required this.error,
-  });
+  DownloadErrorEvent({required this.taskId, required this.error});
 }
 
 /// 下载任务更新事件（保留向后兼容）

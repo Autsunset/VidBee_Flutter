@@ -10,6 +10,7 @@ import 'dart:io';
 import '../../shared/constants/app_constants.dart';
 import '../../core/providers/service_providers.dart';
 import '../../core/services/cookie_service.dart';
+import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../shared/i18n/app_localizations.dart';
 import 'bilibili_login_page.dart';
@@ -64,7 +65,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         {'code': 'ja', 'name': '日本語'},
         {'code': 'ko', 'name': '한국어'},
       ];
-      _language = languages.firstWhere((l) => l['code'] == languageCode)['name']!;
+      _language = languages.firstWhere(
+        (l) => l['code'] == languageCode,
+      )['name']!;
       // 下载路径从 provider 读取
     });
   }
@@ -88,13 +91,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         });
       }
     } catch (e) {
-      print('加载版本信息失败: $e');
+      AppLogger.error('加载版本信息失败', e);
     }
   }
 
   Future<void> _updateYtDlp() async {
     if (_isUpdating) return;
-    
+
     if (mounted) {
       setState(() {
         _isUpdating = true;
@@ -104,7 +107,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final ytDlpService = ref.read(ytDlpServiceProvider);
       final success = await ytDlpService.updateYtDlp();
-      
+
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -142,7 +145,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
     }
   }
-  
+
   Future<void> _initializeDownloadPath() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPath = prefs.getString('download_path');
@@ -151,7 +154,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ref.read(downloadPathProvider.notifier).state = savedPath;
     } else {
       // 否则使用默认路径
-      ref.read(downloadPathProvider.notifier).state = '/storage/emulated/0/Download';
+      ref.read(downloadPathProvider.notifier).state =
+          '/storage/emulated/0/Download';
     }
   }
 
@@ -185,7 +189,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 单独清理某个网站的 Cookie
   Future<void> _removeSingleCookie(String domain) async {
     final loc = AppLocalizations.of(context)!;
-    
+
     // 显示确认对话框
     final confirmed = await showDialog<bool>(
       context: context,
@@ -208,7 +212,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
-    
+
     if (confirmed == true) {
       await _cookieService.removeCookie(domain);
       // 同时清除该域名的 Cookie 文件路径
@@ -239,35 +243,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final filePath = result.files.single.path;
       if (filePath == null) return;
 
+      if (!mounted) return;
       final loc = AppLocalizations.of(context)!;
       final success = await _cookieService.importNetscapeCookieFile(filePath);
 
-      if (mounted) {
-        if (success) {
-          await _loadCookieFilePath();
-          await _loadCookies();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(loc.cookieFileImported),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(loc.cookieFileImportFailed),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (!mounted) return;
+      if (success) {
+        await _loadCookieFilePath();
+        await _loadCookies();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(loc.cookieFileImported),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(loc.cookieFileImportFailed),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -287,17 +289,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       setState(() {
         _cookieFilePath = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(loc.cookieFileCleared)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(loc.cookieFileCleared)));
     }
   }
 
   /// 选择下载路径
   Future<void> _selectDownloadPath() async {
     // 先检查是否有管理存储权限
-    final hasPermission = await PermissionHelper.checkManageExternalStoragePermission();
-    if (!hasPermission && mounted) {
+    final hasPermission =
+        await PermissionHelper.checkManageExternalStoragePermission();
+    if (!hasPermission) {
+      if (!mounted) return;
       // 如果没有权限，提示用户去设置
       await PermissionHelper.showPermissionDialog(
         context,
@@ -314,23 +318,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final selectedPath = await FilePicker.platform.getDirectoryPath(
         dialogTitle: '选择下载目录',
       );
-      
-      if (selectedPath != null && mounted) {
+
+      if (selectedPath != null) {
+        if (!mounted) return;
         ref.read(downloadPathProvider.notifier).state = selectedPath;
         // 保存下载路径
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('download_path', selectedPath);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('下载路径已设置为: $selectedPath')),
-          );
-        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('下载路径已设置为: $selectedPath')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择路径失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('选择路径失败: $e')));
       }
     }
   }
@@ -340,13 +344,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final status = await Permission.storage.request();
     if (mounted) {
       if (status.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('存储权限已获取')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('存储权限已获取')));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('存储权限被拒绝')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('存储权限被拒绝')));
       }
     }
   }
@@ -356,13 +360,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final status = await Permission.notification.request();
     if (mounted) {
       if (status.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('通知权限已获取')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('通知权限已获取')));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('通知权限被拒绝')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('通知权限被拒绝')));
       }
     }
   }
@@ -370,14 +374,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 一键登录 Bilibili
   Future<void> _loginBilibili(BuildContext context) async {
     final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => const BilibiliLoginPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const BilibiliLoginPage()),
     );
-    
+
     if (result == true) {
       await _loadCookies();
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Bilibili 登录成功！'),
@@ -393,7 +395,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     // 获取自定义UA
     final prefs = await SharedPreferences.getInstance();
     final customUA = prefs.getString('custom_ua') ?? '';
-    
+    if (!context.mounted) return;
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => WebViewLoginPage(
@@ -401,14 +404,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           loginUrl: 'https://www.youtube.com/',
           domain: 'youtube.com',
           successUrl: 'https://www.youtube.com/',
-          userAgent: customUA.isNotEmpty ? customUA : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          userAgent: customUA.isNotEmpty
+              ? customUA
+              : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         ),
       ),
     );
-    
+
     if (result == true) {
       await _loadCookies();
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ YouTube 登录成功！'),
@@ -423,7 +428,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final downloadPath = ref.watch(downloadPathProvider);
     final loc = AppLocalizations.of(context)!;
-    
+
     return ListView(
       children: [
         // 下载设置
@@ -495,14 +500,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ListTile(
           leading: const Icon(Icons.storage_outlined),
           title: Text(loc.storagePermission),
-          subtitle: Text(loc.storagePermission), // loc doesn't have hint, using title maybe? no, just use "loc.storagePermission" as title + something else or write short version
+          subtitle: Text(
+            loc.storagePermission,
+          ), // loc doesn't have hint, using title maybe? no, just use "loc.storagePermission" as title + something else or write short version
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestStoragePermission,
         ),
         ListTile(
           leading: const Icon(Icons.notifications_active_outlined),
           title: Text(loc.notificationSettings),
-          subtitle: Text(loc.notificationSettings), // fallback to using the setting name
+          subtitle: Text(
+            loc.notificationSettings,
+          ), // fallback to using the setting name
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestNotificationPermission,
         ),
@@ -532,13 +541,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () async {
-                        final uri = Uri.parse('https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md');
+                        final uri = Uri.parse(
+                          'https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md',
+                        );
                         if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
                         }
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -550,9 +567,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             const SizedBox(width: 4),
                             Text(
                               loc.cookieHelp,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
                             ),
                           ],
                         ),
@@ -570,9 +590,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const SizedBox(height: 12),
                 // 当前文件路径或「未导入」
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -610,7 +635,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         label: Text(loc.importCookieFile),
                       ),
                     ),
-                    if (_cookieFilePath != null) ...[  
+                    if (_cookieFilePath != null) ...[
                       const SizedBox(width: 12),
                       OutlinedButton.icon(
                         onPressed: _clearCookieFile,
@@ -658,7 +683,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _showCookieDialog(context, 'bilibili.com'),
+                        onPressed: () =>
+                            _showCookieDialog(context, 'bilibili.com'),
                         icon: const Icon(Icons.edit),
                         label: Text(loc.manualCookieInput),
                       ),
@@ -669,25 +695,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Row(
                   children: [
                     Icon(
-                      _cookies.containsKey('bilibili.com') 
-                          ? Icons.check_circle 
+                      _cookies.containsKey('bilibili.com')
+                          ? Icons.check_circle
                           : Icons.radio_button_unchecked,
                       size: 16,
-                      color: _cookies.containsKey('bilibili.com') 
-                          ? Colors.green 
+                      color: _cookies.containsKey('bilibili.com')
+                          ? Colors.green
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _cookies.containsKey('bilibili.com') 
-                            ? loc.success 
+                        _cookies.containsKey('bilibili.com')
+                            ? loc.success
                             : loc.loginRequired,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: _cookies.containsKey('bilibili.com') 
-                                  ? Colors.green 
-                                  : Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: _cookies.containsKey('bilibili.com')
+                              ? Colors.green
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     // 单独清理 Bilibili Cookie 的按钮
@@ -739,7 +765,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _showCookieDialog(context, 'youtube.com'),
+                        onPressed: () =>
+                            _showCookieDialog(context, 'youtube.com'),
                         icon: const Icon(Icons.edit),
                         label: Text(loc.manualCookieInput),
                       ),
@@ -750,25 +777,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Row(
                   children: [
                     Icon(
-                      _cookies.containsKey('youtube.com') 
-                          ? Icons.check_circle 
+                      _cookies.containsKey('youtube.com')
+                          ? Icons.check_circle
                           : Icons.radio_button_unchecked,
                       size: 16,
-                      color: _cookies.containsKey('youtube.com') 
-                          ? Colors.green 
+                      color: _cookies.containsKey('youtube.com')
+                          ? Colors.green
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _cookies.containsKey('youtube.com') 
-                            ? loc.success 
+                        _cookies.containsKey('youtube.com')
+                            ? loc.success
                             : loc.loginRequired,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: _cookies.containsKey('youtube.com') 
-                                  ? Colors.green 
-                                  : Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: _cookies.containsKey('youtube.com')
+                              ? Colors.green
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     // 单独清理 YouTube Cookie 的按钮
@@ -821,9 +848,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ? loc.updateYtDlp
                 : '${loc.version}: ${_versionInfo['yt-dlp']?.replaceFirst('yt-dlp ', '') ?? 'Unknown'}',
           ),
-          trailing: _isUpdating
-              ? null
-              : const Icon(Icons.chevron_right),
+          trailing: _isUpdating ? null : const Icon(Icons.chevron_right),
           onTap: _isUpdating ? null : _updateYtDlp,
         ),
         ListTile(
@@ -836,7 +861,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           leading: const Icon(Icons.code),
           title: Text(loc.customUA),
           subtitle: Text(
-            _customUA.isEmpty ? loc.systemDefault : _customUA.length > 30 ? '${_customUA.substring(0, 30)}...' : _customUA,
+            _customUA.isEmpty
+                ? loc.systemDefault
+                : _customUA.length > 30
+                ? '${_customUA.substring(0, 30)}...'
+                : _customUA,
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showCustomUADialog(context),
@@ -861,8 +890,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -875,22 +904,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: Text(loc.concurrentDownloads),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [1, 2, 3, 4, 5].map((count) {
-                return RadioListTile<int>(
-                  title: Text('$count'),
-                  value: count,
-                  groupValue: _concurrentDownloads,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _concurrentDownloads = value;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
+            return RadioGroup<int>(
+              groupValue: _concurrentDownloads,
+              onChanged: (value) {
+                if (value != null) {
+                  setDialogState(() {
+                    _concurrentDownloads = value;
+                  });
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [1, 2, 3, 4, 5].map((count) {
+                  return RadioListTile<int>(
+                    title: Text('$count'),
+                    value: count,
+                  );
+                }).toList(),
+              ),
             );
           },
         ),
@@ -930,22 +961,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: Text(loc.videoQuality),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: qualities.map((quality) {
-                return RadioListTile<String>(
-                  title: Text(_getQualityLabel(context, quality)),
-                  value: quality,
-                  groupValue: _videoQuality,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _videoQuality = value;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
+            return RadioGroup<String>(
+              groupValue: _videoQuality,
+              onChanged: (value) {
+                if (value != null) {
+                  setDialogState(() {
+                    _videoQuality = value;
+                  });
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: qualities.map((quality) {
+                  return RadioListTile<String>(
+                    title: Text(_getQualityLabel(context, quality)),
+                    value: quality,
+                  );
+                }).toList(),
+              ),
             );
           },
         ),
@@ -977,22 +1010,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: Text(loc.audioQuality),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: qualities.map((quality) {
-                return RadioListTile<String>(
-                  title: Text('$quality (${_getAudioQualityLabel(context, quality)})'),
-                  value: quality,
-                  groupValue: _audioQuality,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _audioQuality = value;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
+            return RadioGroup<String>(
+              groupValue: _audioQuality,
+              onChanged: (value) {
+                if (value != null) {
+                  setDialogState(() {
+                    _audioQuality = value;
+                  });
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: qualities.map((quality) {
+                  return RadioListTile<String>(
+                    title: Text(
+                      '$quality (${_getAudioQualityLabel(context, quality)})',
+                    ),
+                    value: quality,
+                  );
+                }).toList(),
+              ),
             );
           },
         ),
@@ -1031,26 +1068,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           builder: (context, setDialogState) {
             return SizedBox(
               width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: languages.length,
-                itemBuilder: (context, index) {
-                  final lang = languages[index];
-                  return RadioListTile<String>(
-                    title: Text(lang['name']!),
-                    value: lang['code']!,
-                    groupValue: ref.read(languageProvider),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() {
-                          ref.read(languageProvider.notifier).state = value;
-                          // 更新本地语言名称
-                          _language = languages.firstWhere((l) => l['code'] == value)['name']!;
-                        });
-                      }
-                    },
-                  );
+              child: RadioGroup<String>(
+                groupValue: ref.read(languageProvider),
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() {
+                      ref.read(languageProvider.notifier).state = value;
+                      // 更新本地语言名称
+                      _language = languages.firstWhere(
+                        (l) => l['code'] == value,
+                      )['name']!;
+                    });
+                  }
                 },
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: languages.length,
+                  itemBuilder: (context, index) {
+                    final lang = languages[index];
+                    return RadioListTile<String>(
+                      title: Text(lang['name']!),
+                      value: lang['code']!,
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -1064,6 +1105,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               await prefs.setString('language', ref.read(languageProvider));
+              if (!context.mounted) return;
               setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1087,22 +1129,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: Text(loc.themeMode),
         content: StatefulBuilder(
           builder: (context, setDialogState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: themes.map((theme) {
-                return RadioListTile<ThemeMode>(
-                  title: Text(_getThemeLabel(context, theme)),
-                  value: theme,
-                  groupValue: _themeMode,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _themeMode = value;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
+            return RadioGroup<ThemeMode>(
+              groupValue: _themeMode,
+              onChanged: (value) {
+                if (value != null) {
+                  setDialogState(() {
+                    _themeMode = value;
+                  });
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: themes.map((theme) {
+                  return RadioListTile<ThemeMode>(
+                    title: Text(_getThemeLabel(context, theme)),
+                    value: theme,
+                  );
+                }).toList(),
+              ),
             );
           },
         ),
@@ -1117,7 +1161,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${loc.themeChanged}: ${_getThemeLabel(context, _themeMode)}')),
+                SnackBar(
+                  content: Text(
+                    '${loc.themeChanged}: ${_getThemeLabel(context, _themeMode)}',
+                  ),
+                ),
               );
             },
             child: Text(loc.ok),
@@ -1141,9 +1189,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           FilledButton(
             onPressed: () {
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('缓存已清除')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('缓存已清除')));
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -1158,7 +1206,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _showCookieDialog(BuildContext context, String domain) {
     final controller = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1175,8 +1223,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Text(
               '获取方法：\n1. 在浏览器中登录 $domain\n2. 按 F12 打开开发者工具\n3. 切换到 Network 标签\n4. 刷新页面\n5. 点击任意请求\n6. 在 Headers 中找到 Cookie',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -1200,11 +1248,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               if (controller.text.isNotEmpty) {
                 await _cookieService.saveCookie(domain, controller.text);
                 await _loadCookies();
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('$domain Cookie 已保存')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$domain Cookie 已保存')));
                 }
               }
             },
@@ -1218,7 +1266,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void _showAddCookieDialog(BuildContext context) {
     final domainController = TextEditingController();
     final cookieController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1253,14 +1301,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           FilledButton(
             onPressed: () async {
-              if (domainController.text.isNotEmpty && cookieController.text.isNotEmpty) {
-                await _cookieService.saveCookie(domainController.text, cookieController.text);
+              if (domainController.text.isNotEmpty &&
+                  cookieController.text.isNotEmpty) {
+                final domain = domainController.text;
+                await _cookieService.saveCookie(domain, cookieController.text);
                 await _loadCookies();
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${domainController.text} Cookie 已保存')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$domain Cookie 已保存')));
                 }
               }
             },
@@ -1286,11 +1336,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onPressed: () async {
               await _cookieService.clearAllCookies();
               await _loadCookies();
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('所有 Cookie 已清除')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('所有 Cookie 已清除')));
               }
             },
             style: FilledButton.styleFrom(
@@ -1363,8 +1413,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Text(
               '© 2026 ${AppConstants.appName}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -1423,7 +1473,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _showCustomUADialog(BuildContext context) {
     final controller = TextEditingController(text: _customUA);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1439,25 +1489,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.warning_amber_rounded, 
-                            color: Colors.orange.shade700, 
-                            size: 18),
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.orange.shade700,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             '重要提示',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.orange.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Colors.orange.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ],
                       ),
@@ -1483,8 +1538,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   '• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n'
                   '• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -1512,9 +1567,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               });
               _saveSettings();
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('已恢复默认 User-Agent')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('已恢复默认 User-Agent')));
             },
             child: const Text('恢复默认'),
           ),
@@ -1525,9 +1580,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               });
               _saveSettings();
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User-Agent 已保存')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('User-Agent 已保存')));
             },
             child: const Text('保存'),
           ),
@@ -1539,11 +1594,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 获取应用文档目录
   Future<Directory> getApplicationDocumentsDirectory() async {
     if (Platform.isAndroid) {
-      return (await getExternalStorageDirectory()) ?? (await getApplicationSupportDirectory());
+      return (await getExternalStorageDirectory()) ??
+          (await getApplicationSupportDirectory());
     } else {
       // 修正: 递归调用修复为正确的获取目录逻辑
       final dir = await getExternalStorageDirectory();
-      return dir ?? Directory.current; 
+      return dir ?? Directory.current;
     }
   }
 }

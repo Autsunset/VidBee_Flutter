@@ -62,11 +62,15 @@ class PlaylistInfo {
     return PlaylistInfo(
       id: json['id'] as String,
       title: json['title'] as String,
-      entries: (json['entries'] as List<dynamic>?)
+      entries:
+          (json['entries'] as List<dynamic>?)
               ?.map((e) => PlaylistEntry.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      entryCount: json['entryCount'] as int? ?? (json['entries'] as List<dynamic>?)?.length ?? 0,
+      entryCount:
+          json['entryCount'] as int? ??
+          (json['entries'] as List<dynamic>?)?.length ??
+          0,
     );
   }
 }
@@ -153,8 +157,12 @@ class PlaylistDownloadResult {
       totalCount: json['totalCount'] as int,
       startIndex: json['startIndex'] as int,
       endIndex: json['endIndex'] as int,
-      entries: (json['entries'] as List<dynamic>?)
-              ?.map((e) => PlaylistDownloadEntry.fromJson(e as Map<String, dynamic>))
+      entries:
+          (json['entries'] as List<dynamic>?)
+              ?.map(
+                (e) =>
+                    PlaylistDownloadEntry.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );

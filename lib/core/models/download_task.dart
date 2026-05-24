@@ -1,9 +1,6 @@
 import 'video_info.dart';
 
-enum DownloadType {
-  video,
-  audio,
-}
+enum DownloadType { video, audio }
 
 enum DownloadStatus {
   pending,

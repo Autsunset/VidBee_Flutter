@@ -171,10 +171,14 @@ class AppLocalizationsZh {
     'statusField': '状态',
     'close': '关闭',
     'unknown': '未知',
-    'parseFailedExpired': '解析失败！\n\n您的 Cookies 可能已过期，请尝试在设置中重新添加 Cookies。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
-    'parseFailedFresh': '解析失败！\n\n该网站需要新鲜的 Cookies 才能解析，请在设置中添加 Cookies。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
-    'parseFailedBilibili': '解析失败！\n\n请检查网络连接或视频链接是否正确。Bilibili 的低清晰度视频无需 Cookies 也可解析。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
-    'parseFailedDefault': '解析失败！\n\n请检查网络连接或视频链接是否正确。某些网站可能需要 Cookies，请在设置中添加后重试。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
+    'parseFailedExpired':
+        '解析失败！\n\n您的 Cookies 可能已过期，请尝试在设置中重新添加 Cookies。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
+    'parseFailedFresh':
+        '解析失败！\n\n该网站需要新鲜的 Cookies 才能解析，请在设置中添加 Cookies。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
+    'parseFailedBilibili':
+        '解析失败！\n\n请检查网络连接或视频链接是否正确。Bilibili 的低清晰度视频无需 Cookies 也可解析。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
+    'parseFailedDefault':
+        '解析失败！\n\n请检查网络连接或视频链接是否正确。某些网站可能需要 Cookies，请在设置中添加后重试。\n\n提示：这也可能是 yt-dlp 尚未支持该网站的最新变动导致的，请等待 yt-dlp 更新。',
     'needStoragePermission': '需要存储权限',
     'storagePermissionMessage': '为了能保存视频到公共存储目录，需要授予"管理所有文件"权限。请在设置中开启此权限。',
     'parsingVideo': '正在解析视频信息...',

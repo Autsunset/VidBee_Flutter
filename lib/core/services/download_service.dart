@@ -12,15 +12,19 @@ import '../utils/event_bus.dart';
 
 /// 下载服务类
 class DownloadService {
-  static final DownloadService _instance = DownloadService._internal();
-  factory DownloadService() => _instance;
-  DownloadService._internal();
+  DownloadService({
+    required YtDlpService ytDlpService,
+    required HistoryService historyService,
+    required NotificationService notificationService,
+  }) : _ytDlpService = ytDlpService,
+       _historyService = historyService,
+       _notificationService = notificationService;
 
-  final YtDlpService _ytDlpService = YtDlpService();
-  final HistoryService _historyService = HistoryService();
-  final NotificationService _notificationService = NotificationService();
+  final YtDlpService _ytDlpService;
+  final HistoryService _historyService;
+  final NotificationService _notificationService;
   final Uuid _uuid = const Uuid();
-  
+
   final List<DownloadTask> _downloadQueue = [];
   final Map<String, DownloadTask> _activeTasks = {};
   final int _maxConcurrentDownloads = 3;
@@ -36,6 +40,7 @@ class DownloadService {
     if (_isInitialized) return;
 
     await _ytDlpService.initialize();
+    await _historyService.initialize();
     _setupYtDlpEventListeners();
     _isInitialized = true;
   }
@@ -43,29 +48,31 @@ class DownloadService {
   /// 设置 yt-dlp 事件监听器（直接来自 YtDlpService）
   void _setupYtDlpEventListeners() {
     // 监听下载状态变化
-    eventBus.on<DownloadStatusChangedEvent>().listen((event) {
-      final task = _activeTasks[event.taskId];
-      if (task != null) {
-        final updatedTask = task.copyWith(status: event.status);
-        _activeTasks[event.taskId] = updatedTask;
-        _notifyTaskUpdate(updatedTask);
-        
-        // 如果下载完成，保存到历史记录并显示完成通知
-        if (event.status == DownloadStatus.completed) {
-          _notificationService.showDownloadComplete(
-            taskId: task.id,
-            title: task.title ?? '视频',
-          );
-          _onTaskComplete(updatedTask);
-        } else if (event.status == DownloadStatus.cancelled) {
-          // 取消下载时取消通知
-          _notificationService.cancelNotification(task.id);
+    _ytdlpStatusSubscription = eventBus.on<DownloadStatusChangedEvent>().listen(
+      (event) {
+        final task = _activeTasks[event.taskId];
+        if (task != null) {
+          final updatedTask = task.copyWith(status: event.status);
+          _activeTasks[event.taskId] = updatedTask;
+          _notifyTaskUpdate(updatedTask);
+
+          // 如果下载完成，保存到历史记录并显示完成通知
+          if (event.status == DownloadStatus.completed) {
+            _notificationService.showDownloadComplete(
+              taskId: task.id,
+              title: task.title ?? '视频',
+            );
+            _onTaskComplete(updatedTask);
+          } else if (event.status == DownloadStatus.cancelled) {
+            // 取消下载时取消通知
+            _notificationService.cancelNotification(task.id);
+          }
         }
-      }
-    });
+      },
+    );
 
     // 监听下载错误
-    eventBus.on<DownloadErrorEvent>().listen((event) {
+    _ytdlpErrorSubscription = eventBus.on<DownloadErrorEvent>().listen((event) {
       final task = _activeTasks[event.taskId];
       if (task != null) {
         final updatedTask = task.copyWith(
@@ -74,20 +81,22 @@ class DownloadService {
         );
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
-        
+
         // 显示错误通知
         _notificationService.showDownloadError(
           taskId: task.id,
           title: task.title ?? '视频',
           error: event.error,
         );
-        
+
         _onTaskComplete(updatedTask);
       }
     });
 
     // 监听下载进度
-    eventBus.on<DownloadProgressEvent>().listen((event) {
+    _ytdlpProgressSubscription = eventBus.on<DownloadProgressEvent>().listen((
+      event,
+    ) {
       final task = _activeTasks[event.taskId];
       if (task != null) {
         final progress = DownloadProgress(
@@ -98,7 +107,7 @@ class DownloadService {
         final updatedTask = task.copyWith(progress: progress);
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
-        
+
         // 更新下载进度通知
         _notificationService.showDownloadProgress(
           taskId: task.id,
@@ -119,10 +128,10 @@ class DownloadService {
   /// 任务完成处理
   Future<void> _onTaskComplete(DownloadTask task) async {
     _activeTasks.remove(task.id);
-    
+
     // 保存到历史记录
     await _saveToHistory(task);
-    
+
     // 启动下一个任务
     _processQueue();
   }
@@ -134,7 +143,8 @@ class DownloadService {
 
   /// 处理队列
   void _processQueue() {
-    while (_activeTasks.length < _maxConcurrentDownloads && _downloadQueue.isNotEmpty) {
+    while (_activeTasks.length < _maxConcurrentDownloads &&
+        _downloadQueue.isNotEmpty) {
       final task = _downloadQueue.removeAt(0);
       _startTask(task);
     }
@@ -152,7 +162,8 @@ class DownloadService {
     final result = await _ytDlpService.startDownload(updatedTask);
     if (result == null) {
       final currentTask = _activeTasks[task.id];
-      if (currentTask != null && currentTask.status == DownloadStatus.downloading) {
+      if (currentTask != null &&
+          currentTask.status == DownloadStatus.downloading) {
         final failedTask = currentTask.copyWith(status: DownloadStatus.error);
         _activeTasks[task.id] = failedTask;
         _onTaskComplete(failedTask);
@@ -243,6 +254,5 @@ class DownloadService {
     _ytdlpProgressSubscription?.cancel();
     _ytdlpStatusSubscription?.cancel();
     _ytdlpErrorSubscription?.cancel();
-    _ytDlpService.dispose();
   }
 }

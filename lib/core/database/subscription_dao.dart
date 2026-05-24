@@ -6,8 +6,9 @@ import 'app_database.dart';
 part 'subscription_dao.g.dart';
 
 @DriftAccessor(tables: [Subscriptions, SubscriptionItems])
-class SubscriptionDao extends DatabaseAccessor<AppDatabase> with _$SubscriptionDaoMixin {
-  SubscriptionDao(AppDatabase db) : super(db);
+class SubscriptionDao extends DatabaseAccessor<AppDatabase>
+    with _$SubscriptionDaoMixin {
+  SubscriptionDao(super.db);
 
   Future<int> insertSubscription(SubscriptionRule subscription) async {
     await into(subscriptions).insert(
@@ -88,7 +89,9 @@ class SubscriptionDao extends DatabaseAccessor<AppDatabase> with _$SubscriptionD
   }
 
   Future<int> updateSubscription(SubscriptionRule subscription) async {
-    await (update(subscriptions)..where((t) => t.id.equals(subscription.id))).write(
+    await (update(
+      subscriptions,
+    )..where((t) => t.id.equals(subscription.id))).write(
       SubscriptionsCompanion(
         title: Value(subscription.title),
         sourceUrl: Value(subscription.sourceUrl),
@@ -111,7 +114,9 @@ class SubscriptionDao extends DatabaseAccessor<AppDatabase> with _$SubscriptionD
       ),
     );
 
-    await (delete(subscriptionItems)..where((t) => t.subscriptionId.equals(subscription.id))).go();
+    await (delete(
+      subscriptionItems,
+    )..where((t) => t.subscriptionId.equals(subscription.id))).go();
 
     for (final item in subscription.items) {
       await into(subscriptionItems).insert(
@@ -134,17 +139,24 @@ class SubscriptionDao extends DatabaseAccessor<AppDatabase> with _$SubscriptionD
   }
 
   Future<int> deleteSubscription(String id) async {
-    await (delete(subscriptionItems)..where((t) => t.subscriptionId.equals(id))).go();
+    await (delete(
+      subscriptionItems,
+    )..where((t) => t.subscriptionId.equals(id))).go();
     return (delete(subscriptions)..where((t) => t.id.equals(id))).go();
   }
 
-  SubscriptionRule _rowToSubscription(Subscription subRow, List<SubscriptionItem> itemRows) {
+  SubscriptionRule _rowToSubscription(
+    Subscription subRow,
+    List<SubscriptionItem> itemRows,
+  ) {
     return SubscriptionRule(
       id: subRow.id,
       title: subRow.title,
       sourceUrl: subRow.sourceUrl,
       feedUrl: subRow.feedUrl,
-      platform: SubscriptionPlatform.values.firstWhere((e) => e.name == subRow.platform),
+      platform: SubscriptionPlatform.values.firstWhere(
+        (e) => e.name == subRow.platform,
+      ),
       keywords: List<String>.from(jsonDecode(subRow.keywords)),
       tags: List<String>.from(jsonDecode(subRow.tags)),
       onlyDownloadLatest: subRow.onlyDownloadLatest == 1,
@@ -154,7 +166,9 @@ class SubscriptionDao extends DatabaseAccessor<AppDatabase> with _$SubscriptionD
       latestVideoPublishedAt: subRow.latestVideoPublishedAt,
       lastCheckedAt: subRow.lastCheckedAt,
       lastSuccessAt: subRow.lastSuccessAt,
-      status: SubscriptionStatus.values.firstWhere((e) => e.name == subRow.status),
+      status: SubscriptionStatus.values.firstWhere(
+        (e) => e.name == subRow.status,
+      ),
       lastError: subRow.lastError,
       createdAt: subRow.createdAt,
       updatedAt: subRow.updatedAt,

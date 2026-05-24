@@ -1,15 +1,6 @@
-enum SubscriptionPlatform {
-  youtube,
-  bilibili,
-  custom,
-}
+enum SubscriptionPlatform { youtube, bilibili, custom }
 
-enum SubscriptionStatus {
-  idle,
-  checking,
-  upToDate,
-  failed,
-}
+enum SubscriptionStatus { idle, checking, upToDate, failed }
 
 class SubscriptionFeedItem {
   final String id;
@@ -176,8 +167,11 @@ class SubscriptionRule {
       updatedAt: json['updatedAt'] as int,
       downloadDirectory: json['downloadDirectory'] as String?,
       namingTemplate: json['namingTemplate'] as String?,
-      items: (json['items'] as List<dynamic>?)
-              ?.map((i) => SubscriptionFeedItem.fromJson(i as Map<String, dynamic>))
+      items:
+          (json['items'] as List<dynamic>?)
+              ?.map(
+                (i) => SubscriptionFeedItem.fromJson(i as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );
@@ -218,7 +212,8 @@ class SubscriptionRule {
       enabled: enabled ?? this.enabled,
       coverUrl: coverUrl ?? this.coverUrl,
       latestVideoTitle: latestVideoTitle ?? this.latestVideoTitle,
-      latestVideoPublishedAt: latestVideoPublishedAt ?? this.latestVideoPublishedAt,
+      latestVideoPublishedAt:
+          latestVideoPublishedAt ?? this.latestVideoPublishedAt,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       lastSuccessAt: lastSuccessAt ?? this.lastSuccessAt,
       status: status ?? this.status,

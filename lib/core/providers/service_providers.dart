@@ -13,9 +13,26 @@ final ytDlpServiceProvider = Provider<YtDlpService>((ref) {
   return service;
 });
 
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService();
+});
+
+final historyServiceProvider = Provider<HistoryService>((ref) {
+  final dao = ref.watch(downloadHistoryDaoProvider);
+  final service = HistoryService(dao);
+  ref.onDispose(() => service.dispose());
+  return service;
+});
+
 final downloadServiceProvider = Provider<DownloadService>((ref) {
-  ref.watch(ytDlpServiceProvider);
-  final service = DownloadService();
+  final ytDlpService = ref.watch(ytDlpServiceProvider);
+  final historyService = ref.watch(historyServiceProvider);
+  final notificationService = ref.watch(notificationServiceProvider);
+  final service = DownloadService(
+    ytDlpService: ytDlpService,
+    historyService: historyService,
+    notificationService: notificationService,
+  );
   ref.onDispose(() => service.dispose());
   return service;
 });

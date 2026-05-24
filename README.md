@@ -11,6 +11,15 @@
 
 ---
 
+### What's New in v1.0.7+8
+
+- Added persistent download history backed by Drift and SQLite.
+- Improved download task state handling to reduce duplicate UI refreshes.
+- Refined cookie, login, settings, and download workflows for better stability.
+- Added focused tests for history persistence behavior.
+
+---
+
 ### 📸 Screenshots
 
 | Link Parsing | Settings (1) |
@@ -27,6 +36,7 @@
 
 - **🌍 Global Support**: Powered by `yt-dlp`, supports 1000+ sites including YouTube, TikTok, Instagram, Twitter, and Bilibili.
 - **🎨 Modern UI**: Clean interface following Material Design 3 guidelines with real-time progress tracking.
+- **📚 Persistent History**: Download history is saved locally and remains available after restarting the app.
 - **🔐 One-Click Login**: Built-in WebView login for platforms like Bilibili and YouTube to access restricted or high-quality content.
 - **⚙️ Full Customization**:
   - Custom download paths and multiple quality options for video/audio.

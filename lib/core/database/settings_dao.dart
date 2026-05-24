@@ -6,18 +6,16 @@ import 'app_database.dart';
 part 'settings_dao.g.dart';
 
 @DriftAccessor(tables: [Settings])
-class SettingsDao extends DatabaseAccessor<AppDatabase> with _$SettingsDaoMixin {
-  SettingsDao(AppDatabase db) : super(db);
+class SettingsDao extends DatabaseAccessor<AppDatabase>
+    with _$SettingsDaoMixin {
+  SettingsDao(super.db);
 
   static const String _settingsKey = 'app_settings';
 
   Future<void> saveSettings(AppSettings appSettings) async {
     final json = jsonEncode(appSettings.toJson());
     await into(settings).insertOnConflictUpdate(
-      SettingsCompanion(
-        key: const Value(_settingsKey),
-        value: Value(json),
-      ),
+      SettingsCompanion(key: const Value(_settingsKey), value: Value(json)),
     );
   }
 

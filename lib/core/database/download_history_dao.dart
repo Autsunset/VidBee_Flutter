@@ -8,10 +8,10 @@ part 'download_history_dao.g.dart';
 @DriftAccessor(tables: [DownloadHistory])
 class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
     with _$DownloadHistoryDaoMixin {
-  DownloadHistoryDao(AppDatabase db) : super(db);
+  DownloadHistoryDao(super.db);
 
   Future<int> insertDownloadHistory(DownloadTask task) async {
-    return into(downloadHistory).insert(
+    return into(downloadHistory).insertOnConflictUpdate(
       DownloadHistoryCompanion(
         id: Value(task.id),
         url: Value(task.url),
@@ -33,7 +33,11 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
         uploader: Value(task.uploader),
         viewCount: Value(task.viewCount),
         tags: Value(task.tags != null ? jsonEncode(task.tags) : null),
-        selectedFormat: Value(task.selectedFormat != null ? jsonEncode(task.selectedFormat!.toJson()) : null),
+        selectedFormat: Value(
+          task.selectedFormat != null
+              ? jsonEncode(task.selectedFormat!.toJson())
+              : null,
+        ),
         playlistId: Value(task.playlistId),
         playlistTitle: Value(task.playlistTitle),
         playlistIndex: Value(task.playlistIndex),
@@ -49,7 +53,9 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
     return rows.map(_rowToTask).toList();
   }
 
-  Future<List<DownloadTask>> getDownloadHistoryByPlaylistId(String playlistId) async {
+  Future<List<DownloadTask>> getDownloadHistoryByPlaylistId(
+    String playlistId,
+  ) async {
     final query = select(downloadHistory)
       ..where((t) => t.playlistId.equals(playlistId))
       ..orderBy([(t) => OrderingTerm.desc(t.downloadedAt)]);
@@ -62,7 +68,9 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<int> deleteDownloadHistoryByPlaylistId(String playlistId) async {
-    return (delete(downloadHistory)..where((t) => t.playlistId.equals(playlistId))).go();
+    return (delete(
+      downloadHistory,
+    )..where((t) => t.playlistId.equals(playlistId))).go();
   }
 
   Future<int> deleteAllDownloadHistory() async {

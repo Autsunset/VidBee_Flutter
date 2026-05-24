@@ -89,7 +89,9 @@ class Settings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [DownloadHistory, Subscriptions, SubscriptionItems, Settings])
+@DriftDatabase(
+  tables: [DownloadHistory, Subscriptions, SubscriptionItems, Settings],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 

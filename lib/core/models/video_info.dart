@@ -58,7 +58,10 @@ class VideoFormat {
 
   factory VideoFormat.fromJson(Map<String, dynamic> json) {
     return VideoFormat(
-      formatId: json['formatId'] as String? ?? json['format_id'] as String? ?? 'unknown',
+      formatId:
+          json['formatId'] as String? ??
+          json['format_id'] as String? ??
+          'unknown',
       ext: json['ext'] as String? ?? 'unknown',
       width: (json['width'] as num?)?.toInt(),
       height: (json['height'] as num?)?.toInt(),
@@ -66,8 +69,11 @@ class VideoFormat {
       vcodec: json['vcodec'] as String?,
       acodec: json['acodec'] as String?,
       filesize: (json['filesize'] as num?)?.toInt(),
-      filesizeApprox: (json['filesizeApprox'] as num?)?.toInt() ?? (json['filesize_approx'] as num?)?.toInt(),
-      formatNote: json['formatNote'] as String? ?? json['format_note'] as String?,
+      filesizeApprox:
+          (json['filesizeApprox'] as num?)?.toInt() ??
+          (json['filesize_approx'] as num?)?.toInt(),
+      formatNote:
+          json['formatNote'] as String? ?? json['format_note'] as String?,
       tbr: (json['tbr'] as num?)?.toInt(),
       quality: (json['quality'] as num?)?.toInt(),
       protocol: json['protocol'] as String?,
@@ -108,7 +114,9 @@ class VideoFormat {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -117,16 +125,16 @@ class VideoFormat {
     final hasValidCodec = vcodec != null && vcodec != 'none';
     final hasValidHeight = height != null && height! > 0;
     final hasValidWidth = width != null && width! > 0;
-    
+
     // 如果没有视频编码，只看分辨率是否有效
     if (!hasValidCodec) {
       return hasValidHeight || hasValidWidth;
     }
-    
+
     // 有视频编码，认为有视频
     return true;
   }
-  
+
   bool get hasAudio {
     // 如果有音频编码，或者没有视频（纯音频），认为有音频
     return (acodec != null && acodec != 'none') || !hasVideo;
@@ -182,13 +190,18 @@ class VideoInfo {
       title: json['title'] as String,
       thumbnail: json['thumbnail'] as String?,
       duration: (json['duration'] as num?)?.toInt(),
-      extractorKey: json['extractorKey'] as String? ?? json['extractor_key'] as String?,
-      webpageUrl: json['webpageUrl'] as String? ?? json['webpage_url'] as String?,
+      extractorKey:
+          json['extractorKey'] as String? ?? json['extractor_key'] as String?,
+      webpageUrl:
+          json['webpageUrl'] as String? ?? json['webpage_url'] as String?,
       description: json['description'] as String?,
-      viewCount: (json['viewCount'] as num?)?.toInt() ?? (json['view_count'] as num?)?.toInt(),
+      viewCount:
+          (json['viewCount'] as num?)?.toInt() ??
+          (json['view_count'] as num?)?.toInt(),
       uploader: json['uploader'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>(),
-      formats: (json['formats'] as List<dynamic>?)
+      formats:
+          (json['formats'] as List<dynamic>?)
               ?.map((f) => VideoFormat.fromJson(f as Map<String, dynamic>))
               .toList() ??
           [],
@@ -228,7 +241,7 @@ class VideoInfo {
         // 都没有高度，比较码率
         return (b.tbr ?? 0).compareTo(a.tbr ?? 0);
       });
-    
+
     // 去重，保留每个分辨率的最佳格式
     final uniqueFormats = <String, VideoFormat>{};
     for (final format in sorted) {
@@ -242,7 +255,7 @@ class VideoInfo {
       } else {
         key = format.formatId;
       }
-      
+
       if (!uniqueFormats.containsKey(key)) {
         uniqueFormats[key] = format;
       }
@@ -256,7 +269,7 @@ class VideoInfo {
       ..sort((a, b) {
         return (b.tbr ?? 0).compareTo(a.tbr ?? 0);
       });
-    
+
     // 去重，保留每个码率的最佳格式
     final uniqueFormats = <String, VideoFormat>{};
     for (final format in sorted) {
@@ -268,7 +281,7 @@ class VideoInfo {
       } else {
         key = format.formatId;
       }
-      
+
       if (!uniqueFormats.containsKey(key)) {
         uniqueFormats[key] = format;
       }
@@ -277,9 +290,7 @@ class VideoInfo {
   }
 
   VideoFormat? get bestAudioFormat {
-    final sorted = audioFormats
-        .where((f) => f.tbr != null)
-        .toList()
+    final sorted = audioFormats.where((f) => f.tbr != null).toList()
       ..sort((a, b) => (b.tbr ?? 0).compareTo(a.tbr ?? 0));
     return sorted.firstOrNull;
   }

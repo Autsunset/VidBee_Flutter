@@ -1,10 +1,11 @@
 class AppConstants {
   static const String appName = 'VidBee_Flutter';
-  static const String appVersion = '1.0.6';
+  static const String appVersion = '1.0.7';
   static const String githubUrl = 'https://github.com/Autsunset';
 
   static const int defaultMaxConcurrentDownloads = 3;
-  static const String defaultSubscriptionFilenameTemplate = '%(uploader)s/%(title)s.%(ext)s';
+  static const String defaultSubscriptionFilenameTemplate =
+      '%(uploader)s/%(title)s.%(ext)s';
 
   static const String dbName = 'vidbee.db';
 

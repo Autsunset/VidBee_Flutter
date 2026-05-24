@@ -1,4 +1,3 @@
-
 // 通知服务
 // 用于显示下载进度的通知显示
 
@@ -10,15 +9,18 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
 
   /// 初始化通知服务
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings();
     const InitializationSettings settings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
@@ -38,19 +40,20 @@ class NotificationService {
   }) async {
     await initialize();
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'download_channel',
-      '下载进度',
-      channelDescription: '显示视频下载进度',
-      importance: Importance.low,
-      priority: Priority.low,
-      showProgress: true,
-      maxProgress: 100,
-      progress: progress,
-      ongoing: true,
-      autoCancel: false,
-      onlyAlertOnce: true,
-    );
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'download_channel',
+          '下载进度',
+          channelDescription: '显示视频下载进度',
+          importance: Importance.low,
+          priority: Priority.low,
+          showProgress: true,
+          maxProgress: 100,
+          progress: progress,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+        );
 
     final NotificationDetails details = NotificationDetails(
       android: androidDetails,
@@ -66,12 +69,7 @@ class NotificationService {
 
     final notificationId = taskId.hashCode.abs() % 0x7FFFFFFF;
 
-    await _notifications.show(
-      notificationId,
-      title,
-      content,
-      details,
-    );
+    await _notifications.show(notificationId, title, content, details);
   }
 
   /// 显示下载完成通知
@@ -81,13 +79,14 @@ class NotificationService {
   }) async {
     await initialize();
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'download_complete_channel',
-      '下载完成',
-      channelDescription: '显示视频下载完成',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'download_complete_channel',
+          '下载完成',
+          channelDescription: '显示视频下载完成',
+          importance: Importance.high,
+          priority: Priority.high,
+        );
 
     final NotificationDetails details = NotificationDetails(
       android: androidDetails,
@@ -95,12 +94,7 @@ class NotificationService {
 
     final notificationId = taskId.hashCode.abs() % 0x7FFFFFFF;
 
-    await _notifications.show(
-      notificationId,
-      '下载完成',
-      title,
-      details,
-    );
+    await _notifications.show(notificationId, '下载完成', title, details);
   }
 
   /// 显示下载失败通知
@@ -111,13 +105,14 @@ class NotificationService {
   }) async {
     await initialize();
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'download_error_channel',
-      '下载失败',
-      channelDescription: '显示视频下载失败',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'download_error_channel',
+          '下载失败',
+          channelDescription: '显示视频下载失败',
+          importance: Importance.high,
+          priority: Priority.high,
+        );
 
     final NotificationDetails details = NotificationDetails(
       android: androidDetails,

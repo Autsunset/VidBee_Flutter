@@ -12,7 +12,7 @@ import 'features/settings/settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -22,11 +22,7 @@ void main() async {
   final notificationService = NotificationService();
   await notificationService.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: VidBeeApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: VidBeeApp()));
 }
 
 class VidBeeApp extends ConsumerWidget {
@@ -36,9 +32,9 @@ class VidBeeApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final languageCode = ref.watch(languageProvider);
-    
+
     const primaryColor = Color(0xFFF9B61B);
-    
+
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
@@ -149,12 +145,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _showAddUrlDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const AddUrlDialog(),
-    );
+    showDialog(context: context, builder: (context) => const AddUrlDialog());
   }
 }
-
-
-

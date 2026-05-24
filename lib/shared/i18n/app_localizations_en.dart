@@ -162,7 +162,8 @@ class AppLocalizationsEn {
     'cancelledTask': 'Cancelled',
     'noHistory': 'No History',
     'clearHistory': 'Clear History',
-    'confirmClearHistory': 'Are you sure you want to clear all history? This action cannot be undone.',
+    'confirmClearHistory':
+        'Are you sure you want to clear all history? This action cannot be undone.',
     'taskDetails': 'Task Details',
     'unknownTitle': 'Unknown Title',
     'titleField': 'Title',
@@ -171,17 +172,23 @@ class AppLocalizationsEn {
     'statusField': 'Status',
     'close': 'Close',
     'unknown': 'Unknown',
-    'parseFailedExpired': 'Parse failed!\n\nYour cookies may have expired, please try adding cookies again in the settings.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
-    'parseFailedFresh': 'Parse failed!\n\nThis site requires fresh cookies to parse, please add cookies in the settings.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
-    'parseFailedBilibili': 'Parse failed!\n\nPlease check your network connection or if the video link is correct. Bilibili\'s low-resolution videos can be parsed without Cookies.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
-    'parseFailedDefault': 'Parse failed!\n\nPlease check your network connection or if the video link is correct. Some sites may require Cookies, please add them in the settings and try again.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
+    'parseFailedExpired':
+        'Parse failed!\n\nYour cookies may have expired, please try adding cookies again in the settings.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
+    'parseFailedFresh':
+        'Parse failed!\n\nThis site requires fresh cookies to parse, please add cookies in the settings.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
+    'parseFailedBilibili':
+        'Parse failed!\n\nPlease check your network connection or if the video link is correct. Bilibili\'s low-resolution videos can be parsed without Cookies.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
+    'parseFailedDefault':
+        'Parse failed!\n\nPlease check your network connection or if the video link is correct. Some sites may require Cookies, please add them in the settings and try again.\n\nNote: This may also be caused by yt-dlp not yet supporting the latest site changes. Please wait for a yt-dlp update.',
     'needStoragePermission': 'Storage Permission Required',
-    'storagePermissionMessage': 'To save videos to the public storage directory, you need to grant the \'Manage all files\' permission. Please enable this permission in the settings.',
+    'storagePermissionMessage':
+        'To save videos to the public storage directory, you need to grant the \'Manage all files\' permission. Please enable this permission in the settings.',
     'parsingVideo': 'Parsing video info...',
     'noAvailableFormat': 'No available format',
     'selectVideoQuality': 'Select Video Quality',
     'selectAudioQuality': 'Select Audio Quality',
-    'highQualityRequiresLogin': '🔒 High definition requires login, please add Cookie in settings',
+    'highQualityRequiresLogin':
+        '🔒 High definition requires login, please add Cookie in settings',
     'importCookieFile': 'Import Cookie File',
     'importCookieFileHint': 'Supports Netscape format (.txt)',
     'cookieFileImported': 'Cookie file imported successfully',

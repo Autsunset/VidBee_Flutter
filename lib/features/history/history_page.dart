@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/download_task.dart';
+import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
 import '../../shared/i18n/app_localizations.dart';
 
@@ -14,13 +15,14 @@ class HistoryPage extends ConsumerStatefulWidget {
 }
 
 class _HistoryPageState extends ConsumerState<HistoryPage> {
-  final HistoryService _historyService = HistoryService();
+  late final HistoryService _historyService;
   StreamSubscription<List<DownloadTask>>? _historySubscription;
   List<DownloadTask> _history = [];
 
   @override
   void initState() {
     super.initState();
+    _historyService = ref.read(historyServiceProvider);
     _history = _historyService.getHistory();
     _historySubscription = _historyService.historyStream.listen((history) {
       if (mounted) {
@@ -29,6 +31,16 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         });
       }
     });
+    _initializeHistory();
+  }
+
+  Future<void> _initializeHistory() async {
+    await _historyService.initialize();
+    if (mounted) {
+      setState(() {
+        _history = _historyService.getHistory();
+      });
+    }
   }
 
   @override
@@ -88,10 +100,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             color: Theme.of(context).colorScheme.secondary,
           ),
           const SizedBox(height: 16),
-          Text(
-            loc.noHistory,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text(loc.noHistory, style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );
@@ -99,12 +108,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
   Future<void> _deleteTask(String taskId) async {
     await _historyService.removeFromHistory(taskId);
-    if (mounted) {
-      setState(() {});
-    }
   }
 
-  Future<void> _showClearDialog(BuildContext context, AppLocalizations loc) async {
+  Future<void> _showClearDialog(
+    BuildContext context,
+    AppLocalizations loc,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -129,9 +138,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
     if (confirmed == true) {
       await _historyService.clearHistory();
-      if (mounted) {
-        setState(() {});
-      }
     }
   }
 
@@ -177,11 +183,12 @@ class HistoryTaskCard extends StatelessWidget {
                     width: 100,
                     height: 56,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Container(
+                    errorBuilder: (context, error, stackTrace) => Container(
                       width: 100,
                       height: 56,
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       child: Icon(
                         Icons.videocam_outlined,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -252,7 +259,7 @@ class HistoryTaskCard extends StatelessWidget {
 
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.1),
+      backgroundColor: color.withValues(alpha: 0.1),
       labelStyle: TextStyle(color: color),
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
@@ -264,7 +271,11 @@ class TaskDetailsBottomSheet extends StatelessWidget {
   final DownloadTask task;
   final AppLocalizations loc;
 
-  const TaskDetailsBottomSheet({super.key, required this.task, required this.loc});
+  const TaskDetailsBottomSheet({
+    super.key,
+    required this.task,
+    required this.loc,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -274,17 +285,14 @@ class TaskDetailsBottomSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            loc.taskDetails,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text(loc.taskDetails, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           if (task.title != null) ...[
             Text(
               loc.titleField,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 4),
             Text(task.title!),
@@ -293,8 +301,8 @@ class TaskDetailsBottomSheet extends StatelessWidget {
           Text(
             loc.urlField,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 4),
           Text(task.url),
@@ -308,11 +316,13 @@ class TaskDetailsBottomSheet extends StatelessWidget {
                     Text(
                       loc.typeField,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text(task.type == DownloadType.video ? loc.video : loc.audio),
+                    Text(
+                      task.type == DownloadType.video ? loc.video : loc.audio,
+                    ),
                   ],
                 ),
               ),
@@ -323,8 +333,8 @@ class TaskDetailsBottomSheet extends StatelessWidget {
                     Text(
                       loc.statusField,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(_getStatusText(task.status, loc)),

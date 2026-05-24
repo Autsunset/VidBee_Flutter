@@ -13,35 +13,16 @@ class AppLanguage {
 }
 
 const List<AppLanguage> supportedLanguages = [
-  AppLanguage(
-    code: 'zh',
-    name: 'Chinese',
-    nativeName: '简体中文',
-  ),
-  AppLanguage(
-    code: 'en',
-    name: 'English',
-    nativeName: 'English',
-  ),
-  AppLanguage(
-    code: 'ja',
-    name: 'Japanese',
-    nativeName: '日本語',
-  ),
-  AppLanguage(
-    code: 'ko',
-    name: 'Korean',
-    nativeName: '한국어',
-  ),
+  AppLanguage(code: 'zh', name: 'Chinese', nativeName: '简体中文'),
+  AppLanguage(code: 'en', name: 'English', nativeName: 'English'),
+  AppLanguage(code: 'ja', name: 'Japanese', nativeName: '日本語'),
+  AppLanguage(code: 'ko', name: 'Korean', nativeName: '한국어'),
 ];
 
 // 获取语言列表
 List<Map<String, String>> getLanguageList() {
   return supportedLanguages
-      .map((lang) => {
-            'code': lang.code,
-            'name': lang.nativeName,
-          })
+      .map((lang) => {'code': lang.code, 'name': lang.nativeName})
       .toList();
 }
 

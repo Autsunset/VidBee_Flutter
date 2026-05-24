@@ -16,8 +16,6 @@ class DownloadsPage extends ConsumerStatefulWidget {
 
 class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   StreamSubscription? _taskUpdateSubscription;
-  StreamSubscription? _progressSubscription;
-  StreamSubscription? _statusSubscription;
 
   @override
   void initState() {
@@ -29,8 +27,6 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   @override
   void dispose() {
     _taskUpdateSubscription?.cancel();
-    _progressSubscription?.cancel();
-    _statusSubscription?.cancel();
     super.dispose();
   }
 
@@ -42,14 +38,6 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
   void _setupEventListeners() {
     _taskUpdateSubscription = eventBus.on<TaskUpdatedEvent>().listen((event) {
-      _refreshTasks();
-    });
-
-    _progressSubscription = eventBus.on<DownloadProgressEvent>().listen((event) {
-      _refreshTasks();
-    });
-
-    _statusSubscription = eventBus.on<DownloadStatusChangedEvent>().listen((event) {
       _refreshTasks();
     });
   }
@@ -91,16 +79,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
             color: Theme.of(context).colorScheme.secondary,
           ),
           const SizedBox(height: 16),
-          Text(
-            loc.noDownloads,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text(loc.noDownloads, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
             loc.clickToAddDownload,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -145,11 +130,12 @@ class DownloadTaskCard extends StatelessWidget {
                       width: 120,
                       height: 68,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Container(
+                      errorBuilder: (context, error, stackTrace) => Container(
                         width: 120,
                         height: 68,
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.videocam_outlined,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -188,9 +174,7 @@ class DownloadTaskCard extends StatelessWidget {
             ),
             if (task.progress != null) ...[
               const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: task.progress!.percent / 100,
-              ),
+              LinearProgressIndicator(value: task.progress!.percent / 100),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -264,7 +248,7 @@ class DownloadTaskCard extends StatelessWidget {
 
     return Chip(
       label: Text(label),
-      backgroundColor: color.withOpacity(0.1),
+      backgroundColor: color.withValues(alpha: 0.1),
       labelStyle: TextStyle(color: color),
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,

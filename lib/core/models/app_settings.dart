@@ -1,27 +1,6 @@
-enum OneClickQualityPreset {
-  best,
-  good,
-  normal,
-  bad,
-  worst,
-}
+enum OneClickQualityPreset { best, good, normal, bad, worst }
 
-enum LanguageCode {
-  en,
-  es,
-  ar,
-  id,
-  pt,
-  fr,
-  it,
-  zh,
-  zhTW,
-  ko,
-  ja,
-  ru,
-  tr,
-  de,
-}
+enum LanguageCode { en, es, ar, id, pt, fr, it, zh, zhTW, ko, ja, ru, tr, de }
 
 class LanguageDefinition {
   final String flag;
@@ -161,7 +140,8 @@ class AppSettings {
     required this.shareWatermark,
   });
 
-  static const String defaultSubscriptionFilenameTemplate = '%(uploader)s/%(title)s.%(ext)s';
+  static const String defaultSubscriptionFilenameTemplate =
+      '%(uploader)s/%(title)s.%(ext)s';
 
   factory AppSettings.defaults() {
     return AppSettings(
@@ -243,7 +223,8 @@ class AppSettings {
       hideDockIcon: json['hideDockIcon'] as bool? ?? false,
       launchAtLogin: json['launchAtLogin'] as bool? ?? false,
       autoUpdate: json['autoUpdate'] as bool? ?? true,
-      subscriptionOnlyLatestDefault: json['subscriptionOnlyLatestDefault'] as bool? ?? true,
+      subscriptionOnlyLatestDefault:
+          json['subscriptionOnlyLatestDefault'] as bool? ?? true,
       enableAnalytics: json['enableAnalytics'] as bool? ?? true,
       embedSubs: json['embedSubs'] as bool? ?? true,
       embedThumbnail: json['embedThumbnail'] as bool? ?? false,
@@ -280,7 +261,8 @@ class AppSettings {
   }) {
     return AppSettings(
       downloadPath: downloadPath ?? this.downloadPath,
-      maxConcurrentDownloads: maxConcurrentDownloads ?? this.maxConcurrentDownloads,
+      maxConcurrentDownloads:
+          maxConcurrentDownloads ?? this.maxConcurrentDownloads,
       browserForCookies: browserForCookies ?? this.browserForCookies,
       cookiesPath: cookiesPath ?? this.cookiesPath,
       proxy: proxy ?? this.proxy,
@@ -295,7 +277,8 @@ class AppSettings {
       hideDockIcon: hideDockIcon ?? this.hideDockIcon,
       launchAtLogin: launchAtLogin ?? this.launchAtLogin,
       autoUpdate: autoUpdate ?? this.autoUpdate,
-      subscriptionOnlyLatestDefault: subscriptionOnlyLatestDefault ?? this.subscriptionOnlyLatestDefault,
+      subscriptionOnlyLatestDefault:
+          subscriptionOnlyLatestDefault ?? this.subscriptionOnlyLatestDefault,
       enableAnalytics: enableAnalytics ?? this.enableAnalytics,
       embedSubs: embedSubs ?? this.embedSubs,
       embedThumbnail: embedThumbnail ?? this.embedThumbnail,

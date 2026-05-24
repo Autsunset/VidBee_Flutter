@@ -2,18 +2,21 @@
 // 用于通知系统媒体库扫描新下载的文件
 
 import 'package:flutter/services.dart';
+import 'app_logger.dart';
 
 /// 媒体扫描工具类
 class MediaScanner {
-  static const MethodChannel _channel = MethodChannel('com.vidbee.media_scanner');
+  static const MethodChannel _channel = MethodChannel(
+    'com.vidbee.media_scanner',
+  );
 
   /// 扫描单个文件
   static Future<void> scanFile(String filePath) async {
     try {
       await _channel.invokeMethod('scanFile', {'filePath': filePath});
-      print('媒体扫描成功: $filePath');
+      AppLogger.debug('媒体扫描成功: $filePath');
     } catch (e) {
-      print('媒体扫描失败: $e');
+      AppLogger.error('媒体扫描失败', e);
     }
   }
 }

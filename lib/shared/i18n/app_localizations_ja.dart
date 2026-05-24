@@ -171,12 +171,17 @@ class AppLocalizationsJa {
     'statusField': 'ステータス',
     'close': '閉じる',
     'unknown': '不明',
-    'parseFailedExpired': '解析に失敗しました！\n\nCookieが期限切れの可能性があります。設定でCookieを再度追加してみてください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
-    'parseFailedFresh': '解析に失敗しました！\n\nこのサイトの解析には新しいCookieが必要です。設定でCookieを追加してください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
-    'parseFailedBilibili': '解析に失敗しました！\n\nネットワーク接続やビデオリンクが正しいか確認してください。Bilibiliの低解像度ビデオはCookieなしで解析できます。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
-    'parseFailedDefault': '解析に失敗しました！\n\nネットワーク接続やビデオリンクが正しいか確認してください。一部のサイトではCookieが必要な場合があります。設定で追加して再試行してください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
+    'parseFailedExpired':
+        '解析に失敗しました！\n\nCookieが期限切れの可能性があります。設定でCookieを再度追加してみてください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
+    'parseFailedFresh':
+        '解析に失敗しました！\n\nこのサイトの解析には新しいCookieが必要です。設定でCookieを追加してください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
+    'parseFailedBilibili':
+        '解析に失敗しました！\n\nネットワーク接続やビデオリンクが正しいか確認してください。Bilibiliの低解像度ビデオはCookieなしで解析できます。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
+    'parseFailedDefault':
+        '解析に失敗しました！\n\nネットワーク接続やビデオリンクが正しいか確認してください。一部のサイトではCookieが必要な場合があります。設定で追加して再試行してください。\n\n注意：yt-dlpがまだサイトの最新変更に対応していない可能性もあります。yt-dlpの更新をお待ちください。',
     'needStoragePermission': 'ストレージ権限が必要です',
-    'storagePermissionMessage': 'ビデオをパブリックストレージディレクトリに保存するには、「すべてのファイルを管理」権限を付与する必要があります。設定でこの権限を有効にしてください。',
+    'storagePermissionMessage':
+        'ビデオをパブリックストレージディレクトリに保存するには、「すべてのファイルを管理」権限を付与する必要があります。設定でこの権限を有効にしてください。',
     'parsingVideo': '動画情報を解析中...',
     'noAvailableFormat': '利用可能な形式がありません',
     'selectVideoQuality': '画質を選択',
