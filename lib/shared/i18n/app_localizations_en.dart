@@ -168,6 +168,7 @@ class AppLocalizationsEn {
     'unknownTitle': 'Unknown Title',
     'titleField': 'Title',
     'urlField': 'URL',
+    'savedFile': 'Saved File',
     'typeField': 'Type',
     'statusField': 'Status',
     'close': 'Close',

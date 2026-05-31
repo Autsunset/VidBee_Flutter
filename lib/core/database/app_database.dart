@@ -39,58 +39,8 @@ class DownloadHistory extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-class Subscriptions extends Table {
-  TextColumn get id => text()();
-  TextColumn get title => text()();
-  TextColumn get sourceUrl => text()();
-  TextColumn get feedUrl => text()();
-  TextColumn get platform => text()();
-  TextColumn get keywords => text()();
-  TextColumn get tags => text()();
-  IntColumn get onlyDownloadLatest => integer()();
-  IntColumn get enabled => integer()();
-  TextColumn get coverUrl => text().nullable()();
-  TextColumn get latestVideoTitle => text().nullable()();
-  IntColumn get latestVideoPublishedAt => integer().nullable()();
-  IntColumn get lastCheckedAt => integer().nullable()();
-  IntColumn get lastSuccessAt => integer().nullable()();
-  TextColumn get status => text()();
-  TextColumn get lastError => text().nullable()();
-  IntColumn get createdAt => integer()();
-  IntColumn get updatedAt => integer()();
-  TextColumn get downloadDirectory => text().nullable()();
-  TextColumn get namingTemplate => text().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-class SubscriptionItems extends Table {
-  TextColumn get subscriptionId => text()();
-  TextColumn get itemId => text()();
-  TextColumn get title => text()();
-  TextColumn get url => text()();
-  IntColumn get publishedAt => integer()();
-  TextColumn get thumbnail => text().nullable()();
-  IntColumn get added => integer()();
-  TextColumn get downloadId => text().nullable()();
-  IntColumn get createdAt => integer()();
-  IntColumn get updatedAt => integer()();
-
-  @override
-  Set<Column> get primaryKey => {subscriptionId, itemId};
-}
-
-class Settings extends Table {
-  TextColumn get key => text()();
-  TextColumn get value => text()();
-
-  @override
-  Set<Column> get primaryKey => {key};
-}
-
 @DriftDatabase(
-  tables: [DownloadHistory, Subscriptions, SubscriptionItems, Settings],
+  tables: [DownloadHistory],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());

@@ -1,6 +1,7 @@
 // 添加 URL 对话框
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/providers/providers.dart';
 import '../../core/models/models.dart';
@@ -20,6 +21,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
   final _urlController = TextEditingController();
   bool _isAudioOnly = false;
   final CookieService _cookieService = CookieService();
+  // 解析完成后缓存当前域名是否已有 Cookie，避免在格式列表中对每个 chip 反复异步查询
+  bool _hasCookieForDomain = false;
 
   @override
   void dispose() {
@@ -124,12 +127,12 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         if (videoInfo.thumbnail != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              videoInfo.thumbnail!,
+            child: CachedNetworkImage(
+              imageUrl: videoInfo.thumbnail!,
               width: 120,
               height: 68,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+              errorWidget: (context, url, error) => Container(
                 width: 120,
                 height: 68,
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -137,6 +140,11 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                   Icons.videocam_outlined,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
+              ),
+              placeholder: (context, url) => Container(
+                width: 120,
+                height: 68,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ),
           ),
@@ -203,62 +211,47 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
             final isSelected = selectedFormat?.formatId == format.formatId;
             // 对于 Bilibili，只有第一个（最高质量）格式需要登录
             final requiresLogin = domain.contains('bilibili.com') && index == 0;
+            final isDisabled = requiresLogin && !_hasCookieForDomain;
 
-            return FutureBuilder<bool>(
-              future: _cookieService.hasCookie(domain),
-              builder: (context, snapshot) {
-                final hasCookie = snapshot.data ?? false;
-                final isDisabled = requiresLogin && !hasCookie;
-
-                return FilterChip(
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_getFormatLabel(format)),
-                      if (requiresLogin) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          hasCookie ? Icons.verified : Icons.lock,
-                          size: 14,
-                          color: hasCookie
-                              ? Colors.green
-                              : Theme.of(context).colorScheme.error,
-                        ),
-                      ],
-                    ],
-                  ),
-                  selected: isSelected,
-                  onSelected: isDisabled
-                      ? null
-                      : (selected) {
-                          if (selected) {
-                            ref.read(selectedFormatProvider.notifier).state =
-                                format;
-                          }
-                        },
-                );
-              },
+            return FilterChip(
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_getFormatLabel(format)),
+                  if (requiresLogin) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      _hasCookieForDomain ? Icons.verified : Icons.lock,
+                      size: 14,
+                      color: _hasCookieForDomain
+                          ? Colors.green
+                          : Theme.of(context).colorScheme.error,
+                    ),
+                  ],
+                ],
+              ),
+              selected: isSelected,
+              onSelected: isDisabled
+                  ? null
+                  : (selected) {
+                      if (selected) {
+                        ref.read(selectedFormatProvider.notifier).state =
+                            format;
+                      }
+                    },
             );
           }).toList(),
         ),
-        FutureBuilder<bool>(
-          future: _cookieService.hasCookie(domain),
-          builder: (context, snapshot) {
-            final hasCookie = snapshot.data ?? false;
-            if (!hasCookie && domain.contains('bilibili.com')) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  AppLocalizations.of(context)!.highQualityRequiresLogin,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+        if (!_hasCookieForDomain && domain.contains('bilibili.com'))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              AppLocalizations.of(context)!.highQualityRequiresLogin,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -331,18 +324,29 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     // 获取自定义UA
     final prefs = await SharedPreferences.getInstance();
     final customUA = prefs.getString('custom_ua') ?? '';
+    final defaultVideoQuality =
+        prefs.getString('default_video_quality') ?? '1080p';
     final videoInfo = await ytDlpService.getVideoInfo(url, customUA: customUA);
+    // 解析完成后一次性查询当前域名的 Cookie 状态，供格式列表复用
+    final domainHasCookie = await _cookieService.hasCookie(
+      _cookieService.extractDomain(url),
+    );
 
     if (mounted) {
       ref.read(isLoadingVideoInfoProvider.notifier).state = false;
+      setState(() {
+        _hasCookieForDomain = domainHasCookie;
+      });
       if (videoInfo != null) {
         ref.read(currentVideoInfoProvider.notifier).state = videoInfo;
-        // 默认选择第一个格式
+        // 根据默认质量设置预选格式
         final formats = _isAudioOnly
             ? videoInfo.bestAudioFormats
             : videoInfo.bestVideoFormats;
         if (formats.isNotEmpty) {
-          ref.read(selectedFormatProvider.notifier).state = formats.first;
+          ref.read(selectedFormatProvider.notifier).state = _isAudioOnly
+              ? formats.first
+              : _pickDefaultVideoFormat(formats, defaultVideoQuality);
         }
       } else {
         final domain = _cookieService.extractDomain(url);
@@ -372,6 +376,30 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         );
       }
     }
+  }
+
+  /// 根据默认视频质量设置，从已排序（从高到低）的格式列表中选择最合适的格式。
+  /// 选择不超过目标高度的最高画质；若都高于目标，则退回到最低的一个，
+  /// 'best' 或无法解析时直接用最高画质（列表首项）。
+  VideoFormat _pickDefaultVideoFormat(
+    List<VideoFormat> sortedFormats,
+    String quality,
+  ) {
+    if (quality == 'best') return sortedFormats.first;
+
+    final targetHeight = int.tryParse(quality.replaceAll('p', ''));
+    if (targetHeight == null) return sortedFormats.first;
+
+    // 列表已按高度从高到低排序，找到第一个 <= 目标高度的格式
+    for (final format in sortedFormats) {
+      final h = format.height;
+      if (h != null && h > 0 && h <= targetHeight) {
+        return format;
+      }
+    }
+
+    // 没有任何格式 <= 目标高度，说明都是更高画质：选最低的那个（列表末项）
+    return sortedFormats.last;
   }
 
   /// 自动补全 URL

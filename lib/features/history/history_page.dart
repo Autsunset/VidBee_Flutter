@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/models/download_task.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
@@ -78,6 +79,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _history.length,
             itemBuilder: (context, index) => HistoryTaskCard(
+              key: ValueKey(_history[index].id),
               task: _history[index],
               onDelete: () => _deleteTask(_history[index].id),
               onTap: () => _showTaskDetails(context, _history[index]),
@@ -178,12 +180,12 @@ class HistoryTaskCard extends StatelessWidget {
               if (task.thumbnail != null)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    task.thumbnail!,
+                  child: CachedNetworkImage(
+                    imageUrl: task.thumbnail!,
                     width: 100,
                     height: 56,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
+                    errorWidget: (context, url, error) => Container(
                       width: 100,
                       height: 56,
                       color: Theme.of(
@@ -193,6 +195,13 @@ class HistoryTaskCard extends StatelessWidget {
                         Icons.videocam_outlined,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
+                    ),
+                    placeholder: (context, url) => Container(
+                      width: 100,
+                      height: 56,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                     ),
                   ),
                 ),
@@ -307,6 +316,17 @@ class TaskDetailsBottomSheet extends StatelessWidget {
           const SizedBox(height: 4),
           Text(task.url),
           const SizedBox(height: 16),
+          if (task.savedFileName != null && task.savedFileName!.isNotEmpty) ...[
+            Text(
+              loc.savedFile,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(task.savedFileName!),
+            const SizedBox(height: 16),
+          ],
           Row(
             children: [
               Expanded(

@@ -52,6 +52,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
+      _concurrentDownloads = prefs.getInt('max_concurrent_downloads') ?? 3;
+      _enableNotification = prefs.getBool('enable_notification') ?? true;
       _videoQuality = prefs.getString('default_video_quality') ?? '1080p';
       _audioQuality = prefs.getString('default_audio_quality') ?? '3';
       _customUA = prefs.getString('custom_ua') ?? '';
@@ -75,6 +77,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 保存设置
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('max_concurrent_downloads', _concurrentDownloads);
+    await prefs.setBool('enable_notification', _enableNotification);
     await prefs.setString('default_video_quality', _videoQuality);
     await prefs.setString('default_audio_quality', _audioQuality);
     await prefs.setString('custom_ua', _customUA);
@@ -455,6 +459,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             setState(() {
               _enableNotification = value;
             });
+            _saveSettings();
+            ref.read(downloadServiceProvider).setNotificationsEnabled(value);
           },
         ),
 
@@ -934,6 +940,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onPressed: () {
               setState(() {});
               _saveSettings();
+              ref
+                  .read(downloadServiceProvider)
+                  .setMaxConcurrentDownloads(_concurrentDownloads);
               Navigator.of(context).pop();
             },
             child: Text(loc.ok),
@@ -1156,8 +1165,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Text(loc.cancel),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               ref.read(themeModeProvider.notifier).state = _themeMode;
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('theme_mode', _themeMode.name);
+              if (!context.mounted) return;
               setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(

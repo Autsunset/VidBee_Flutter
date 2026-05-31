@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import '../database/app_database.dart';
-import '../database/subscription_dao.dart';
-import '../database/settings_dao.dart';
 import '../database/download_history_dao.dart';
 
 final ytDlpServiceProvider = Provider<YtDlpService>((ref) {
@@ -57,16 +55,6 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(() => db.close());
   return db;
-});
-
-final subscriptionDaoProvider = Provider<SubscriptionDao>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return SubscriptionDao(db);
-});
-
-final settingsDaoProvider = Provider<SettingsDao>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return SettingsDao(db);
 });
 
 final downloadHistoryDaoProvider = Provider<DownloadHistoryDao>((ref) {

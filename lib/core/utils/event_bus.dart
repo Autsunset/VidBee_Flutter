@@ -26,20 +26,15 @@ class TaskUpdatedEvent {
 }
 
 /// 下载进度更新事件
+/// 注意：extractor 插件的进度回调只提供进度百分比与 ETA，不含速度/字节数。
 class DownloadProgressEvent {
   final String taskId;
   final double progress;
-  final int downloadedBytes;
-  final int totalBytes;
-  final double speed;
   final int eta;
 
   DownloadProgressEvent({
     required this.taskId,
     required this.progress,
-    required this.downloadedBytes,
-    required this.totalBytes,
-    required this.speed,
     required this.eta,
   });
 }
@@ -86,18 +81,4 @@ class HistoryUpdatedEvent {
   final List<DownloadTask> history;
 
   HistoryUpdatedEvent(this.history);
-}
-
-/// 订阅更新事件
-class SubscriptionUpdatedEvent {
-  final SubscriptionRule subscription;
-
-  SubscriptionUpdatedEvent(this.subscription);
-}
-
-/// 设置更新事件
-class SettingsUpdatedEvent {
-  final AppSettings settings;
-
-  SettingsUpdatedEvent(this.settings);
 }

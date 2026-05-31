@@ -2,6 +2,7 @@
 // 管理下载任务队列和状态
 
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/download_task.dart';
 import '../models/video_info.dart';
@@ -27,7 +28,13 @@ class DownloadService {
 
   final List<DownloadTask> _downloadQueue = [];
   final Map<String, DownloadTask> _activeTasks = {};
-  final int _maxConcurrentDownloads = 3;
+  // 下载成功后由 startDownload 返回的真实文件名，按 taskId 暂存，供历史记录使用
+  final Map<String, String> _resolvedFileNames = {};
+  int _maxConcurrentDownloads = 3;
+  bool _notificationsEnabled = true;
+
+  static const String _prefMaxConcurrent = 'max_concurrent_downloads';
+  static const String _prefNotificationsEnabled = 'enable_notification';
 
   StreamSubscription? _ytdlpProgressSubscription;
   StreamSubscription? _ytdlpStatusSubscription;
@@ -39,10 +46,33 @@ class DownloadService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    await _loadPreferences();
     await _ytDlpService.initialize();
     await _historyService.initialize();
     _setupYtDlpEventListeners();
     _isInitialized = true;
+  }
+
+  /// 从 SharedPreferences 读取下载相关设置
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final maxConcurrent = prefs.getInt(_prefMaxConcurrent);
+    if (maxConcurrent != null && maxConcurrent > 0) {
+      _maxConcurrentDownloads = maxConcurrent;
+    }
+    _notificationsEnabled = prefs.getBool(_prefNotificationsEnabled) ?? true;
+  }
+
+  /// 更新最大并发下载数（设置变更时由设置页调用，立即生效）
+  void setMaxConcurrentDownloads(int value) {
+    if (value <= 0) return;
+    _maxConcurrentDownloads = value;
+    _processQueue();
+  }
+
+  /// 更新通知开关（设置变更时由设置页调用）
+  void setNotificationsEnabled(bool value) {
+    _notificationsEnabled = value;
   }
 
   /// 设置 yt-dlp 事件监听器（直接来自 YtDlpService）
@@ -58,10 +88,12 @@ class DownloadService {
 
           // 如果下载完成，保存到历史记录并显示完成通知
           if (event.status == DownloadStatus.completed) {
-            _notificationService.showDownloadComplete(
-              taskId: task.id,
-              title: task.title ?? '视频',
-            );
+            if (_notificationsEnabled) {
+              _notificationService.showDownloadComplete(
+                taskId: task.id,
+                title: task.title ?? '视频',
+              );
+            }
             _onTaskComplete(updatedTask);
           } else if (event.status == DownloadStatus.cancelled) {
             // 取消下载时取消通知
@@ -83,11 +115,13 @@ class DownloadService {
         _notifyTaskUpdate(updatedTask);
 
         // 显示错误通知
-        _notificationService.showDownloadError(
-          taskId: task.id,
-          title: task.title ?? '视频',
-          error: event.error,
-        );
+        if (_notificationsEnabled) {
+          _notificationService.showDownloadError(
+            taskId: task.id,
+            title: task.title ?? '视频',
+            error: event.error,
+          );
+        }
 
         _onTaskComplete(updatedTask);
       }
@@ -101,7 +135,6 @@ class DownloadService {
       if (task != null) {
         final progress = DownloadProgress(
           percent: event.progress,
-          currentSpeed: event.speed > 0 ? '${event.speed} KB/s' : null,
           eta: event.eta > 0 ? '${event.eta}s' : null,
         );
         final updatedTask = task.copyWith(progress: progress);
@@ -109,13 +142,15 @@ class DownloadService {
         _notifyTaskUpdate(updatedTask);
 
         // 更新下载进度通知
-        _notificationService.showDownloadProgress(
-          taskId: task.id,
-          title: task.title ?? '正在下载...',
-          progress: event.progress.toInt(),
-          speed: progress.currentSpeed,
-          eta: progress.eta,
-        );
+        if (_notificationsEnabled) {
+          _notificationService.showDownloadProgress(
+            taskId: task.id,
+            title: task.title ?? '正在下载...',
+            progress: event.progress.toInt(),
+            speed: progress.currentSpeed,
+            eta: progress.eta,
+          );
+        }
       }
     });
   }
@@ -138,7 +173,15 @@ class DownloadService {
 
   /// 保存到历史记录
   Future<void> _saveToHistory(DownloadTask task) async {
-    await _historyService.addToHistory(task);
+    // 如果 startDownload 已返回真实文件路径，则补充到历史记录中
+    final resolvedPath = _resolvedFileNames.remove(task.id);
+    final enrichedTask = resolvedPath != null
+        ? task.copyWith(
+            savedFileName: task.savedFileName ?? _fileNameFromPath(resolvedPath),
+            downloadPath: resolvedPath,
+          )
+        : task;
+    await _historyService.addToHistory(enrichedTask);
   }
 
   /// 处理队列
@@ -169,7 +212,27 @@ class DownloadService {
         _onTaskComplete(failedTask);
         _notifyTaskUpdate(failedTask);
       }
+    } else {
+      // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
+      // 因此既写入活动任务，也尝试更新已落库的历史记录。
+      final savedFileName = _fileNameFromPath(result);
+      final activeTask = _activeTasks[task.id];
+      if (activeTask != null) {
+        _activeTasks[task.id] = activeTask.copyWith(
+          savedFileName: savedFileName,
+          downloadPath: result,
+        );
+      }
+      _resolvedFileNames[task.id] = result;
+      await _historyService.updateSavedFile(task.id, result, savedFileName);
     }
+  }
+
+  /// 从完整路径中提取文件名
+  String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final segments = normalized.split('/');
+    return segments.isEmpty ? path : segments.last;
   }
 
   /// 添加下载任务

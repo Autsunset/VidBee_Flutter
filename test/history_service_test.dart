@@ -69,6 +69,31 @@ void main() {
     expect(service.getHistory(), isEmpty);
     expect(await dao.getAllDownloadHistory(), isEmpty);
   });
+
+  test('updateSavedFile persists download path and file name', () async {
+    await service.addToHistory(task('one'));
+
+    await service.updateSavedFile(
+      'one',
+      '/storage/emulated/0/Download/VidBee_Clip.mp4',
+      'VidBee_Clip.mp4',
+    );
+
+    final cached = service.getHistory().single;
+    final persisted = (await dao.getAllDownloadHistory()).single;
+
+    expect(cached.savedFileName, 'VidBee_Clip.mp4');
+    expect(cached.downloadPath, '/storage/emulated/0/Download/VidBee_Clip.mp4');
+    expect(persisted.savedFileName, 'VidBee_Clip.mp4');
+  });
+
+  test('updateSavedFile is a no-op for unknown task id', () async {
+    await service.addToHistory(task('one'));
+
+    await service.updateSavedFile('missing', '/path/file.mp4', 'file.mp4');
+
+    expect(service.getHistory().single.savedFileName, isNull);
+  });
 }
 
 class FakeDownloadHistoryDao implements DownloadHistoryDao {

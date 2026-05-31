@@ -99,6 +99,17 @@ class _HomePageState extends ConsumerState<HomePage> {
         ref.read(languageProvider.notifier).state = savedLanguage;
       }
     }
+    // 加载主题设置
+    final savedTheme = prefs.getString('theme_mode');
+    if (savedTheme != null && savedTheme.isNotEmpty) {
+      final themeMode = ThemeMode.values.firstWhere(
+        (m) => m.name == savedTheme,
+        orElse: () => ThemeMode.system,
+      );
+      if (mounted) {
+        ref.read(themeModeProvider.notifier).state = themeMode;
+      }
+    }
   }
 
   @override

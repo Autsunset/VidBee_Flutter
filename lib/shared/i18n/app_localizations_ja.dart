@@ -167,6 +167,7 @@ class AppLocalizationsJa {
     'unknownTitle': '不明なタイトル',
     'titleField': 'タイトル',
     'urlField': 'URL',
+    'savedFile': '保存したファイル',
     'typeField': '種類',
     'statusField': 'ステータス',
     'close': '閉じる',

@@ -167,6 +167,7 @@ class AppLocalizationsKo {
     'unknownTitle': '알 수 없는 제목',
     'titleField': '제목',
     'urlField': 'URL',
+    'savedFile': '저장된 파일',
     'typeField': '유형',
     'statusField': '상태',
     'close': '닫기',

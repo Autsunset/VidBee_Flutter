@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/providers/providers.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/event_bus.dart';
@@ -16,6 +17,7 @@ class DownloadsPage extends ConsumerStatefulWidget {
 
 class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   StreamSubscription? _taskUpdateSubscription;
+  Timer? _progressRefreshTimer;
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   @override
   void dispose() {
     _taskUpdateSubscription?.cancel();
+    _progressRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -38,7 +41,21 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
   void _setupEventListeners() {
     _taskUpdateSubscription = eventBus.on<TaskUpdatedEvent>().listen((event) {
-      _refreshTasks();
+      // 下载进度事件触发非常频繁；对其做节流，避免每帧重建整个列表。
+      // 状态转换（开始/完成/错误/取消）则立即刷新。
+      if (event.task.status == DownloadStatus.downloading) {
+        _scheduleProgressRefresh();
+      } else {
+        _progressRefreshTimer?.cancel();
+        _refreshTasks();
+      }
+    });
+  }
+
+  void _scheduleProgressRefresh() {
+    if (_progressRefreshTimer?.isActive ?? false) return;
+    _progressRefreshTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) _refreshTasks();
     });
   }
 
@@ -61,6 +78,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       padding: const EdgeInsets.all(16),
       itemCount: tasks.length,
       itemBuilder: (context, index) => DownloadTaskCard(
+        key: ValueKey(tasks[index].id),
         task: tasks[index],
         onCancel: () => _cancelTask(tasks[index].id),
         loc: loc,
@@ -125,12 +143,12 @@ class DownloadTaskCard extends StatelessWidget {
                 if (task.thumbnail != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      task.thumbnail!,
+                    child: CachedNetworkImage(
+                      imageUrl: task.thumbnail!,
                       width: 120,
                       height: 68,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
+                      errorWidget: (context, url, error) => Container(
                         width: 120,
                         height: 68,
                         color: Theme.of(
@@ -140,6 +158,13 @@ class DownloadTaskCard extends StatelessWidget {
                           Icons.videocam_outlined,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
+                      ),
+                      placeholder: (context, url) => Container(
+                        width: 120,
+                        height: 68,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                       ),
                     ),
                   ),

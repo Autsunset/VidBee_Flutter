@@ -204,6 +204,7 @@ class AppLocalizations {
   String get unknownTitle => _translate('unknownTitle');
   String get titleField => _translate('titleField');
   String get urlField => _translate('urlField');
+  String get savedFile => _translate('savedFile');
   String get typeField => _translate('typeField');
   String get statusField => _translate('statusField');
   String get close => _translate('close');

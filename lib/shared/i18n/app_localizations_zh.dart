@@ -167,6 +167,7 @@ class AppLocalizationsZh {
     'unknownTitle': '未知标题',
     'titleField': '标题',
     'urlField': '链接',
+    'savedFile': '已保存文件',
     'typeField': '类型',
     'statusField': '状态',
     'close': '关闭',
