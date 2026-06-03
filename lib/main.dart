@@ -6,6 +6,7 @@ import 'shared/constants/app_constants.dart';
 import 'shared/i18n/app_localizations.dart';
 import 'core/providers/service_providers.dart';
 import 'core/services/services.dart';
+import 'core/utils/permission_helper.dart';
 import 'features/download/download.dart';
 import 'features/history/history.dart';
 import 'features/settings/settings.dart';
@@ -90,6 +91,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (savedPath != null && savedPath.isNotEmpty) {
       if (mounted) {
         ref.read(downloadPathProvider.notifier).state = savedPath;
+      }
+    } else {
+      final defaultPath = await PermissionHelper.getDefaultDownloadPath();
+      if (mounted) {
+        ref.read(downloadPathProvider.notifier).state = defaultPath;
       }
     }
     // 加载语言设置

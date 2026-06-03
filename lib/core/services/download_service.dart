@@ -2,6 +2,7 @@
 // 管理下载任务队列和状态
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/download_task.dart';
@@ -35,12 +36,14 @@ class DownloadService {
 
   static const String _prefMaxConcurrent = 'max_concurrent_downloads';
   static const String _prefNotificationsEnabled = 'enable_notification';
+  static const String _prefIncompleteTasks = 'incomplete_download_tasks';
 
   StreamSubscription? _ytdlpProgressSubscription;
   StreamSubscription? _ytdlpStatusSubscription;
   StreamSubscription? _ytdlpErrorSubscription;
 
   bool _isInitialized = false;
+  final Set<String> _completionHandledTaskIds = {};
 
   /// 初始化下载服务
   Future<void> initialize() async {
@@ -49,8 +52,10 @@ class DownloadService {
     await _loadPreferences();
     await _ytDlpService.initialize();
     await _historyService.initialize();
+    await _restoreIncompleteTasks();
     _setupYtDlpEventListeners();
     _isInitialized = true;
+    _processQueue();
   }
 
   /// 从 SharedPreferences 读取下载相关设置
@@ -85,6 +90,7 @@ class DownloadService {
           final updatedTask = task.copyWith(status: event.status);
           _activeTasks[event.taskId] = updatedTask;
           _notifyTaskUpdate(updatedTask);
+          unawaited(_persistIncompleteTasks());
 
           // 如果下载完成，保存到历史记录并显示完成通知
           if (event.status == DownloadStatus.completed) {
@@ -94,7 +100,7 @@ class DownloadService {
                 title: task.title ?? '视频',
               );
             }
-            _onTaskComplete(updatedTask);
+            unawaited(_onTaskComplete(updatedTask));
           } else if (event.status == DownloadStatus.cancelled) {
             // 取消下载时取消通知
             _notificationService.cancelNotification(task.id);
@@ -113,6 +119,7 @@ class DownloadService {
         );
         _activeTasks[event.taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
+        unawaited(_persistIncompleteTasks());
 
         // 显示错误通知
         if (_notificationsEnabled) {
@@ -123,7 +130,7 @@ class DownloadService {
           );
         }
 
-        _onTaskComplete(updatedTask);
+        unawaited(_onTaskComplete(updatedTask));
       }
     });
 
@@ -162,10 +169,13 @@ class DownloadService {
 
   /// 任务完成处理
   Future<void> _onTaskComplete(DownloadTask task) async {
+    if (!_completionHandledTaskIds.add(task.id)) return;
+
     _activeTasks.remove(task.id);
 
     // 保存到历史记录
     await _saveToHistory(task);
+    await _persistIncompleteTasks();
 
     // 启动下一个任务
     _processQueue();
@@ -177,7 +187,8 @@ class DownloadService {
     final resolvedPath = _resolvedFileNames.remove(task.id);
     final enrichedTask = resolvedPath != null
         ? task.copyWith(
-            savedFileName: task.savedFileName ?? _fileNameFromPath(resolvedPath),
+            savedFileName:
+                task.savedFileName ?? _fileNameFromPath(resolvedPath),
             downloadPath: resolvedPath,
           )
         : task;
@@ -189,8 +200,9 @@ class DownloadService {
     while (_activeTasks.length < _maxConcurrentDownloads &&
         _downloadQueue.isNotEmpty) {
       final task = _downloadQueue.removeAt(0);
-      _startTask(task);
+      unawaited(_startTask(task));
     }
+    unawaited(_persistIncompleteTasks());
   }
 
   /// 启动任务
@@ -201,16 +213,20 @@ class DownloadService {
     );
     _activeTasks[task.id] = updatedTask;
     _notifyTaskUpdate(updatedTask);
+    await _persistIncompleteTasks();
 
     final result = await _ytDlpService.startDownload(updatedTask);
     if (result == null) {
       final currentTask = _activeTasks[task.id];
       if (currentTask != null &&
           currentTask.status == DownloadStatus.downloading) {
-        final failedTask = currentTask.copyWith(status: DownloadStatus.error);
+        final failedTask = currentTask.copyWith(
+          status: DownloadStatus.error,
+          error: currentTask.error ?? '下载进程结束但没有返回输出文件',
+        );
         _activeTasks[task.id] = failedTask;
-        _onTaskComplete(failedTask);
         _notifyTaskUpdate(failedTask);
+        await _onTaskComplete(failedTask);
       }
     } else {
       // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
@@ -224,7 +240,25 @@ class DownloadService {
         );
       }
       _resolvedFileNames[task.id] = result;
-      await _historyService.updateSavedFile(task.id, result, savedFileName);
+      await _updateHistorySavedFile(task.id, result, savedFileName);
+      await _persistIncompleteTasks();
+    }
+  }
+
+  Future<void> _updateHistorySavedFile(
+    String taskId,
+    String path,
+    String savedFileName,
+  ) async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final updated = await _historyService.updateSavedFile(
+        taskId,
+        path,
+        savedFileName,
+      );
+      if (updated) return;
+      if (!_completionHandledTaskIds.contains(taskId)) return;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
     }
   }
 
@@ -266,6 +300,7 @@ class DownloadService {
 
     _downloadQueue.add(task);
     _notifyTaskUpdate(task);
+    await _persistIncompleteTasks();
     _processQueue();
 
     return task;
@@ -280,7 +315,7 @@ class DownloadService {
         final updatedTask = task.copyWith(status: DownloadStatus.cancelled);
         _activeTasks[taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
-        _onTaskComplete(updatedTask);
+        await _onTaskComplete(updatedTask);
       }
       return cancelled;
     }
@@ -291,6 +326,7 @@ class DownloadService {
       final task = _downloadQueue.removeAt(queueIndex);
       final updatedTask = task.copyWith(status: DownloadStatus.cancelled);
       _notifyTaskUpdate(updatedTask);
+      await _persistIncompleteTasks();
       return true;
     }
 
@@ -310,6 +346,81 @@ class DownloadService {
   /// 获取所有任务
   List<DownloadTask> getAllTasks() {
     return [..._activeTasks.values, ..._downloadQueue];
+  }
+
+  /// 恢复上次退出前尚未完成的任务。
+  Future<void> _restoreIncompleteTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefIncompleteTasks);
+    if (raw == null || raw.isEmpty) return;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+
+      final restoredQueue = <DownloadTask>[];
+      final interruptedTasks = <DownloadTask>[];
+
+      for (final item in decoded) {
+        if (item is! Map<String, dynamic>) continue;
+        final task = DownloadTask.fromJson(item);
+        switch (task.status) {
+          case DownloadStatus.pending:
+            restoredQueue.add(task);
+            break;
+          case DownloadStatus.downloading:
+          case DownloadStatus.processing:
+            interruptedTasks.add(
+              task.copyWith(
+                status: DownloadStatus.error,
+                error: task.error ?? '应用关闭或下载进程中断',
+              ),
+            );
+            break;
+          case DownloadStatus.completed:
+          case DownloadStatus.error:
+          case DownloadStatus.cancelled:
+            break;
+        }
+      }
+
+      _downloadQueue
+        ..clear()
+        ..addAll(restoredQueue);
+
+      for (final task in interruptedTasks) {
+        await _saveToHistory(task);
+      }
+    } catch (_) {
+      await prefs.remove(_prefIncompleteTasks);
+      return;
+    }
+
+    await _persistIncompleteTasks();
+  }
+
+  /// 持久化未完成任务，防止进程被杀后队列静默丢失。
+  Future<void> _persistIncompleteTasks() async {
+    final incompleteTasks = [
+      ..._downloadQueue,
+      ..._activeTasks.values.where(
+        (task) =>
+            task.status == DownloadStatus.pending ||
+            task.status == DownloadStatus.downloading ||
+            task.status == DownloadStatus.processing,
+      ),
+    ];
+
+    final prefs = await SharedPreferences.getInstance();
+    if (incompleteTasks.isEmpty) {
+      await prefs.remove(_prefIncompleteTasks);
+      return;
+    }
+
+    await prefs.setString(
+      _prefIncompleteTasks,
+      jsonEncode(incompleteTasks.map((task) => task.toJson()).toList()),
+    );
   }
 
   /// 清理资源

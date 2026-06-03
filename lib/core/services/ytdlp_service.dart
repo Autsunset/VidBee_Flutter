@@ -5,11 +5,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:extractor/extractor.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/video_info.dart' as vidbee;
 import '../models/download_task.dart' as vidbee;
 import '../utils/app_logger.dart';
 import '../utils/event_bus.dart';
 import '../utils/media_scanner.dart';
+import '../utils/permission_helper.dart';
 import 'cookie_service.dart';
 
 /// yt-dlp 服务类
@@ -21,6 +23,9 @@ class YtDlpService {
   /// Bilibili 等站点强制使用的桌面端 UA，避免 yt-dlp 重定向到移动端导致解析失败
   static const String _desktopUA =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  static const String _prefLastYtDlpUpdateCheck = 'last_ytdlp_update_check';
+  static const Duration _ytDlpUpdateCheckInterval = Duration(hours: 24);
 
   final YoutubeDLFlutter _youtubeDL = YoutubeDLFlutter.instance;
   bool _isInitialized = false;
@@ -40,8 +45,8 @@ class YtDlpService {
         _isInitialized = true;
         _setupEventListeners();
 
-        // 初始化成功后自动更新 yt-dlp 到最新版本（带重试）
-        await _ensureYtDlpUpdated();
+        // 后台限频检查更新，避免启动和首次解析被网络更新阻塞。
+        unawaited(_ensureYtDlpUpdatedIfNeeded());
 
         return true;
       } else {
@@ -54,8 +59,21 @@ class YtDlpService {
     }
   }
 
+  /// 限频后台检查 yt-dlp 更新。
+  Future<void> _ensureYtDlpUpdatedIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastChecked = prefs.getInt(_prefLastYtDlpUpdateCheck) ?? 0;
+    if (now - lastChecked < _ytDlpUpdateCheckInterval.inMilliseconds) {
+      return;
+    }
+
+    await prefs.setInt(_prefLastYtDlpUpdateCheck, now);
+    await _updateYtDlpWithRetry();
+  }
+
   /// 确保 yt-dlp 更新到最新版本（带重试机制）
-  Future<void> _ensureYtDlpUpdated() async {
+  Future<void> _updateYtDlpWithRetry() async {
     for (int i = 0; i < 3; i++) {
       try {
         AppLogger.debug('正在自动更新 yt-dlp (尝试 ${i + 1}/3)...');
@@ -223,38 +241,34 @@ class YtDlpService {
       String downloadPath = task.downloadPath ?? '';
 
       if (downloadPath.isEmpty) {
-        // 直接使用系统Downloads目录，这样其他应用也能看到
-        downloadPath = '/storage/emulated/0/Download';
+        // 直接使用系统 Downloads 目录，这样其他应用也能看到。
+        downloadPath = await PermissionHelper.getDefaultDownloadPath();
       }
 
-      // 确保下载目录存在
-      final dir = Directory(downloadPath);
-      if (!await dir.exists()) {
+      if (!await PermissionHelper.isDirectoryWritable(downloadPath)) {
+        AppLogger.error('下载目录不可写，尝试使用备用目录', downloadPath);
         try {
-          await dir.create(recursive: true);
-          AppLogger.debug('创建下载目录: $downloadPath');
-        } catch (e) {
-          AppLogger.error('创建下载目录失败', e);
-          // 尝试使用应用私有目录作为备用
-          try {
-            final appDir = await getExternalStorageDirectory();
-            if (appDir != null) {
-              downloadPath = '${appDir.path}/Download/VidBee';
-              final backupDir = Directory(downloadPath);
-              if (!await backupDir.exists()) {
-                await backupDir.create(recursive: true);
-              }
-              AppLogger.debug('使用备用下载目录: $downloadPath');
-            }
-          } catch (e2) {
-            AppLogger.error('创建备用目录也失败', e2);
+          final appDir = await getExternalStorageDirectory();
+          if (appDir == null) return null;
+
+          downloadPath = '${appDir.path}/Download/VidBee';
+          if (!await PermissionHelper.isDirectoryWritable(downloadPath)) {
+            AppLogger.error('备用下载目录不可写', downloadPath);
             return null;
           }
+          AppLogger.debug('使用备用下载目录: $downloadPath');
+        } catch (e) {
+          AppLogger.error('创建备用目录失败', e);
+          return null;
         }
       }
 
       AppLogger.debug('开始下载: ${task.url}');
       AppLogger.debug('下载路径: $downloadPath');
+
+      final prefs = await SharedPreferences.getInstance();
+      final configuredAudioQuality =
+          int.tryParse(prefs.getString('default_audio_quality') ?? '3') ?? 3;
 
       // 确定下载格式
       String format;
@@ -291,7 +305,9 @@ class YtDlpService {
         embedMetadata: true,
         extractAudio: task.type == vidbee.DownloadType.audio,
         audioFormat: task.type == vidbee.DownloadType.audio ? 'mp3' : null,
-        audioQuality: task.type == vidbee.DownloadType.audio ? 0 : null,
+        audioQuality: task.type == vidbee.DownloadType.audio
+            ? configuredAudioQuality
+            : null,
         customOptions: customOptions.isEmpty ? null : customOptions,
       );
 
@@ -353,9 +369,7 @@ class YtDlpService {
       final candidates = dir
           .listSync()
           .whereType<File>()
-          .where(
-            (f) => !f.path.endsWith('.part') && !f.path.endsWith('.ytdl'),
-          )
+          .where((f) => !f.path.endsWith('.part') && !f.path.endsWith('.ytdl'))
           .toList();
       if (candidates.isEmpty) return null;
 

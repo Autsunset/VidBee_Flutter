@@ -159,7 +159,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     } else {
       // 否则使用默认路径
       ref.read(downloadPathProvider.notifier).state =
-          '/storage/emulated/0/Download';
+          await PermissionHelper.getDefaultDownloadPath();
     }
   }
 
@@ -345,17 +345,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 请求存储权限
   Future<void> _requestStoragePermission() async {
-    final status = await Permission.storage.request();
+    final granted = await PermissionHelper.requestDownloadStoragePermission();
     if (mounted) {
-      if (status.isGranted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('存储权限已获取')));
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('存储权限被拒绝')));
-      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(granted ? '存储权限已获取' : '存储权限被拒绝')));
     }
   }
 
@@ -1199,11 +1193,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('缓存已清除')));
+              final cleared = await _clearAppCache();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(cleared ? '缓存已清除' : '缓存清理失败')),
+              );
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -1214,6 +1210,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<bool> _clearAppCache() async {
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await for (final entity in tempDir.list()) {
+          try {
+            await entity.delete(recursive: true);
+          } catch (e) {
+            AppLogger.error('删除缓存项失败: ${entity.path}', e);
+          }
+        }
+      }
+
+      final docsDir = await getApplicationDocumentsDirectory();
+      final mergedCookies = File('${docsDir.path}/merged_cookies.txt');
+      if (await mergedCookies.exists()) {
+        await mergedCookies.delete();
+      }
+
+      return true;
+    } catch (e) {
+      AppLogger.error('清理缓存失败', e);
+      return false;
+    }
   }
 
   void _showCookieDialog(BuildContext context, String domain) {

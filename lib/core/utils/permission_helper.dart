@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 权限状态
 enum PermissionStatusType {
@@ -44,30 +45,69 @@ class PermissionHelper {
     return _convertStatus(status);
   }
 
-  /// 检查是否有管理所有文件权限
+  /// 检查是否有公共下载目录写入能力。
   static Future<bool> checkManageExternalStoragePermission() async {
-    try {
-      if (Platform.isAndroid) {
-        // 对于Android，我们需要使用特殊方法检查
-        // 这里简化处理，先尝试创建一个测试文件
-        final testDir = Directory('/storage/emulated/0/Download/VidBee_test');
-        try {
-          await testDir.create(recursive: true);
-          await testDir.delete();
-          return true;
-        } catch (e) {
-          return false;
-        }
-      }
-      return true;
-    } catch (e) {
-      return false;
+    if (!Platform.isAndroid) return true;
+
+    final hasManageAccess = await Permission.manageExternalStorage.isGranted;
+    if (hasManageAccess) return true;
+
+    return isDirectoryWritable('/storage/emulated/0/Download');
+  }
+
+  /// 请求下载目录写入权限。
+  static Future<bool> requestDownloadStoragePermission() async {
+    if (!Platform.isAndroid) return true;
+
+    if (await checkManageExternalStoragePermission()) return true;
+
+    final manageStatus = await Permission.manageExternalStorage.request();
+    if (manageStatus.isGranted) return true;
+
+    final storageStatus = await Permission.storage.request();
+    if (storageStatus.isGranted) {
+      return isDirectoryWritable('/storage/emulated/0/Download');
     }
+
+    return false;
   }
 
   /// 请求管理所有文件权限（打开系统设置）
   static Future<void> openManageExternalStorageSettings() async {
-    await openAppSettings();
+    await Permission.manageExternalStorage.request();
+    if (!await checkManageExternalStoragePermission()) {
+      await openAppSettings();
+    }
+  }
+
+  /// 获取默认下载目录。
+  static Future<String> getDefaultDownloadPath() async {
+    if (Platform.isAndroid) return '/storage/emulated/0/Download';
+
+    final downloadsDir = await getDownloadsDirectory();
+    if (downloadsDir != null) return downloadsDir.path;
+
+    final documentsDir = await getApplicationDocumentsDirectory();
+    return '${documentsDir.path}/VidBee';
+  }
+
+  /// 检查目录是否可写，必要时创建目录。
+  static Future<bool> isDirectoryWritable(String path) async {
+    try {
+      final dir = Directory(path);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final testFile = File(
+        '${dir.path}${Platform.pathSeparator}.vidbee_write_test_${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await testFile.writeAsString('ok', flush: true);
+      await testFile.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// 检查通知权限状态

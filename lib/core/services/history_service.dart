@@ -58,7 +58,7 @@ class HistoryService {
   }
 
   /// 更新某条历史记录的已保存文件路径/文件名（若该记录已存在）
-  Future<void> updateSavedFile(
+  Future<bool> updateSavedFile(
     String taskId,
     String downloadPath,
     String savedFileName,
@@ -66,7 +66,7 @@ class HistoryService {
     await initialize();
 
     final index = _history.indexWhere((t) => t.id == taskId);
-    if (index == -1) return;
+    if (index == -1) return false;
 
     final updated = _history[index].copyWith(
       downloadPath: downloadPath,
@@ -75,6 +75,7 @@ class HistoryService {
     _history[index] = updated;
     await _downloadHistoryDao.insertDownloadHistory(updated);
     _notifyHistoryUpdated();
+    return true;
   }
 
   /// 清空历史记录
