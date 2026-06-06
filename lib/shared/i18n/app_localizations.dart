@@ -229,6 +229,19 @@ class AppLocalizations {
   String get cookieHelp => _translate('cookieHelp');
   String get currentCookieFile => _translate('currentCookieFile');
   String get clearCookieFile => _translate('clearCookieFile');
+  String get retryQueued => _translate('retryQueued');
+  String get fileUnavailable => _translate('fileUnavailable');
+  String get errorDetails => _translate('errorDetails');
+  String get cookieImportedSummary => _translate('cookieImportedSummary');
+  String get clearCookieConfirm => _translate('clearCookieConfirm');
+  String get cookieCleared => _translate('cookieCleared');
+  String get selectCookieFile => _translate('selectCookieFile');
+  String get selectDownloadDirectory => _translate('selectDownloadDirectory');
+  String get downloadPathSaved => _translate('downloadPathSaved');
+  String get selectPathFailed => _translate('selectPathFailed');
+  String get updateYtDlpSuccess => _translate('updateYtDlpSuccess');
+  String get updateYtDlpRetry => _translate('updateYtDlpRetry');
+  String get loginSuccessWithSite => _translate('loginSuccessWithSite');
 
   String _translate(String key) {
     switch (locale.languageCode) {

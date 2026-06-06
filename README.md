@@ -11,12 +11,14 @@
 
 ---
 
-### What's New in v1.0.7+8
+### What's New in v1.0.10+11
 
 - Added persistent download history backed by Drift and SQLite.
-- Improved download task state handling to reduce duplicate UI refreshes.
+- Improved download task restoration, completion de-duplication, and saved file name handling.
+- Added retry support for failed or cancelled history items.
+- Added open/share actions for completed history items.
 - Refined cookie, login, settings, and download workflows for better stability.
-- Added focused tests for history persistence behavior.
+- Expanded focused tests for download recovery and retry behavior.
 
 ---
 

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vidbee_flutter/core/database/download_history_dao.dart';
 import 'package:vidbee_flutter/core/models/download_task.dart';
+import 'package:vidbee_flutter/core/models/video_info.dart';
 import 'package:vidbee_flutter/core/services/download_service.dart';
 import 'package:vidbee_flutter/core/services/history_service.dart';
 import 'package:vidbee_flutter/core/services/notification_service.dart';
@@ -61,6 +62,30 @@ void main() {
       expect(history.single.error, '应用关闭或下载进程中断');
     },
   );
+
+  test('retryTask queues a new task from a failed history item', () async {
+    final source = task('failed', DownloadStatus.error).copyWith(
+      selectedFormat: VideoFormat(formatId: '22', ext: 'mp4', height: 720),
+      downloadPath: '/storage/emulated/0/Download/VidBee_Clip.mp4',
+      savedFileName: 'VidBee_Clip.mp4',
+      error: 'network failed',
+    );
+    final ytDlp = FakeYtDlpService();
+    final service = DownloadService(
+      ytDlpService: ytDlp,
+      historyService: HistoryService(FakeDownloadHistoryDao()),
+      notificationService: FakeNotificationService(),
+    );
+
+    final retried = await service.retryTask(source);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(retried.id, isNot(source.id));
+    expect(retried.url, source.url);
+    expect(retried.selectedFormat?.formatId, '22');
+    expect(retried.downloadPath, '/storage/emulated/0/Download');
+    expect(ytDlp.startedTaskIds, contains(retried.id));
+  });
 
   test(
     'completion event and returned output path produce one history row',

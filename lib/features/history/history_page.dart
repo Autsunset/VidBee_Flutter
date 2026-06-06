@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/download_task.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
@@ -147,7 +149,57 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     final loc = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
-      builder: (context) => TaskDetailsBottomSheet(task: task, loc: loc),
+      showDragHandle: true,
+      builder: (context) => TaskDetailsBottomSheet(
+        task: task,
+        loc: loc,
+        onRetry: () => _retryTask(task),
+        onOpen: () => _openSavedFile(task),
+        onShare: () => _shareSavedFile(task),
+      ),
+    );
+  }
+
+  Future<void> _retryTask(DownloadTask task) async {
+    final downloadService = ref.read(downloadServiceProvider);
+    await downloadService.retryTask(task);
+    ref.read(downloadTasksProvider.notifier).state = downloadService
+        .getAllTasks();
+    if (!mounted) return;
+    Navigator.of(context).maybePop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context)!.retryQueued)),
+    );
+  }
+
+  Future<void> _openSavedFile(DownloadTask task) async {
+    final path = task.downloadPath;
+    if (path == null || path.isEmpty) {
+      _showFileUnavailable();
+      return;
+    }
+
+    final opened = await launchUrl(
+      Uri.file(path),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened) _showFileUnavailable();
+  }
+
+  Future<void> _shareSavedFile(DownloadTask task) async {
+    final path = task.downloadPath;
+    if (path == null || path.isEmpty) {
+      _showFileUnavailable();
+      return;
+    }
+
+    await Share.shareXFiles([XFile(path)], text: task.title);
+  }
+
+  void _showFileUnavailable() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context)!.fileUnavailable)),
     );
   }
 }
@@ -279,11 +331,17 @@ class HistoryTaskCard extends StatelessWidget {
 class TaskDetailsBottomSheet extends StatelessWidget {
   final DownloadTask task;
   final AppLocalizations loc;
+  final VoidCallback onRetry;
+  final VoidCallback onOpen;
+  final VoidCallback onShare;
 
   const TaskDetailsBottomSheet({
     super.key,
     required this.task,
     required this.loc,
+    required this.onRetry,
+    required this.onOpen,
+    required this.onShare,
   });
 
   @override
@@ -325,6 +383,15 @@ class TaskDetailsBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(task.savedFileName!),
+            if (task.downloadPath != null && task.downloadPath!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                task.downloadPath!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
           ],
           Row(
@@ -363,10 +430,50 @@ class TaskDetailsBottomSheet extends StatelessWidget {
               ),
             ],
           ),
+          if (task.error != null && task.error!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              loc.errorDetails,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              task.error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(loc.close),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (task.status == DownloadStatus.completed) ...[
+                OutlinedButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(loc.open),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share_outlined),
+                  label: Text(loc.share),
+                ),
+              ],
+              if (task.status == DownloadStatus.error ||
+                  task.status == DownloadStatus.cancelled)
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(loc.retry),
+                ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(loc.close),
+              ),
+            ],
           ),
         ],
       ),

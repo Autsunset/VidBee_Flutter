@@ -306,6 +306,51 @@ class DownloadService {
     return task;
   }
 
+  /// 基于已有任务创建一次新的下载尝试。
+  Future<DownloadTask> retryTask(DownloadTask sourceTask) async {
+    await initialize();
+
+    final task = DownloadTask(
+      id: _uuid.v4(),
+      url: sourceTask.url,
+      type: sourceTask.type,
+      status: DownloadStatus.pending,
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+      selectedFormat: sourceTask.selectedFormat,
+      title: sourceTask.title,
+      thumbnail: sourceTask.thumbnail,
+      channel: sourceTask.channel,
+      uploader: sourceTask.uploader,
+      duration: sourceTask.duration,
+      fileSize: sourceTask.fileSize,
+      downloadPath: _retryDownloadPath(sourceTask),
+      playlistId: sourceTask.playlistId,
+      playlistTitle: sourceTask.playlistTitle,
+      playlistIndex: sourceTask.playlistIndex,
+      playlistSize: sourceTask.playlistSize,
+    );
+
+    _downloadQueue.add(task);
+    _notifyTaskUpdate(task);
+    await _persistIncompleteTasks();
+    _processQueue();
+
+    return task;
+  }
+
+  String? _retryDownloadPath(DownloadTask task) {
+    final path = task.downloadPath;
+    final savedFileName = task.savedFileName;
+    if (path == null || path.isEmpty || savedFileName == null) return path;
+
+    final normalizedPath = path.replaceAll('\\', '/');
+    if (!normalizedPath.endsWith('/$savedFileName')) return path;
+
+    final separatorIndex = normalizedPath.lastIndexOf('/');
+    if (separatorIndex <= 0) return path;
+    return path.substring(0, separatorIndex);
+  }
+
   /// 取消任务
   Future<bool> cancelTask(String taskId) async {
     final task = _activeTasks[taskId];

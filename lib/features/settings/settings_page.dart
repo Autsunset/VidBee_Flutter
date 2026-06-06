@@ -37,6 +37,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _isUpdating = false;
   String? _cookieFilePath;
 
+  String _locTemplate(String template, Map<String, Object> values) {
+    var result = template;
+    for (final entry in values.entries) {
+      result = result.replaceAll('{${entry.key}}', entry.value.toString());
+    }
+    return result;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +109,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _updateYtDlp() async {
     if (_isUpdating) return;
+    final loc = AppLocalizations.of(context)!;
 
     if (mounted) {
       setState(() {
@@ -115,17 +124,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('yt-dlp 更新成功！'),
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(loc.updateYtDlpSuccess),
+              duration: const Duration(seconds: 3),
             ),
           );
           await _loadVersionInfo();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('yt-dlp 更新失败，请稍后重试。'),
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(loc.updateYtDlpRetry),
+              duration: const Duration(seconds: 3),
               backgroundColor: Colors.red,
             ),
           );
@@ -135,7 +144,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('更新失败: $e'),
+            content: Text('${loc.updateFailed}: $e'),
             duration: const Duration(seconds: 3),
             backgroundColor: Colors.red,
           ),
@@ -184,7 +193,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         } else if (allPaths.length == 1) {
           _cookieFilePath = allPaths.values.first;
         } else {
-          _cookieFilePath = '已导入 ${allPaths.length} 个网站的 Cookie';
+          _cookieFilePath = _locTemplate(
+            AppLocalizations.of(context)!.cookieImportedSummary,
+            {'count': allPaths.length},
+          );
         }
       });
     }
@@ -199,7 +211,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(loc.clear),
-        content: Text('确定要清理 $domain 的 Cookie 吗？清理后需要重新登录。'),
+        content: Text(_locTemplate(loc.clearCookieConfirm, {'domain': domain})),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -226,7 +238,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$domain Cookie 已清理'),
+            content: Text(_locTemplate(loc.cookieCleared, {'domain': domain})),
             backgroundColor: Colors.green,
           ),
         );
@@ -236,11 +248,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 导入 Netscape 格式 Cookie 文件
   Future<void> _importCookieFile() async {
+    final loc = AppLocalizations.of(context)!;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['txt'],
-        dialogTitle: '选择 cookies.txt 文件',
+        dialogTitle: loc.selectCookieFile,
       );
       if (result == null || result.files.isEmpty) return;
 
@@ -248,7 +261,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (filePath == null) return;
 
       if (!mounted) return;
-      final loc = AppLocalizations.of(context)!;
       final success = await _cookieService.importNetscapeCookieFile(filePath);
 
       if (!mounted) return;
@@ -301,6 +313,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 选择下载路径
   Future<void> _selectDownloadPath() async {
+    final loc = AppLocalizations.of(context)!;
     // 先检查是否有管理存储权限
     final hasPermission =
         await PermissionHelper.checkManageExternalStoragePermission();
@@ -309,8 +322,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       // 如果没有权限，提示用户去设置
       await PermissionHelper.showPermissionDialog(
         context,
-        title: '需要存储权限',
-        message: '为了能保存视频到公共存储目录，需要授予"管理所有文件"权限。请在设置中开启此权限。',
+        title: loc.needStoragePermission,
+        message: loc.storagePermissionMessage,
         onGranted: () async {
           await PermissionHelper.openManageExternalStorageSettings();
         },
@@ -320,7 +333,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     try {
       final selectedPath = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择下载目录',
+        dialogTitle: loc.selectDownloadDirectory,
       );
 
       if (selectedPath != null) {
@@ -330,47 +343,58 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('download_path', selectedPath);
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('下载路径已设置为: $selectedPath')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _locTemplate(loc.downloadPathSaved, {'path': selectedPath}),
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('选择路径失败: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_locTemplate(loc.selectPathFailed, {'error': e})),
+          ),
+        );
       }
     }
   }
 
   /// 请求存储权限
   Future<void> _requestStoragePermission() async {
+    final loc = AppLocalizations.of(context)!;
     final granted = await PermissionHelper.requestDownloadStoragePermission();
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(granted ? '存储权限已获取' : '存储权限被拒绝')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(granted ? loc.permissionGranted : loc.permissionDenied),
+        ),
+      );
     }
   }
 
   /// 请求通知权限
   Future<void> _requestNotificationPermission() async {
+    final loc = AppLocalizations.of(context)!;
     final status = await Permission.notification.request();
     if (mounted) {
       if (status.isGranted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('通知权限已获取')));
+        ).showSnackBar(SnackBar(content: Text(loc.permissionGranted)));
       } else {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('通知权限被拒绝')));
+        ).showSnackBar(SnackBar(content: Text(loc.permissionDenied)));
       }
     }
   }
 
   /// 一键登录 Bilibili
   Future<void> _loginBilibili(BuildContext context) async {
+    final loc = AppLocalizations.of(context)!;
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (context) => const BilibiliLoginPage()),
     );
@@ -379,8 +403,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await _loadCookies();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Bilibili 登录成功！'),
+          SnackBar(
+            content: Text(
+              _locTemplate(loc.loginSuccessWithSite, {'site': 'Bilibili'}),
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -390,6 +416,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 一键登录 YouTube
   Future<void> _loginYouTube(BuildContext context) async {
+    final loc = AppLocalizations.of(context)!;
     // 获取自定义UA
     final prefs = await SharedPreferences.getInstance();
     final customUA = prefs.getString('custom_ua') ?? '';
@@ -413,8 +440,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await _loadCookies();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ YouTube 登录成功！'),
+          SnackBar(
+            content: Text(
+              _locTemplate(loc.loginSuccessWithSite, {'site': 'YouTube'}),
+            ),
             backgroundColor: Colors.green,
           ),
         );
