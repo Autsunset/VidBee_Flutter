@@ -14,6 +14,7 @@ import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../shared/i18n/app_localizations.dart';
 import 'bilibili_login_page.dart';
+import 'logs_page.dart';
 import 'webview_login_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -863,6 +864,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         // 高级
         const Divider(),
         _buildSectionHeader(loc.advanced),
+        ListTile(
+          leading: const Icon(Icons.article_outlined),
+          title: const Text('日志'),
+          subtitle: const Text('按日期和时间复制或导出日志'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (context) => const LogsPage())),
+        ),
         ListTile(
           leading: _isUpdating
               ? const SizedBox(

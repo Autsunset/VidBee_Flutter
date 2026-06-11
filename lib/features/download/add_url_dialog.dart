@@ -315,6 +315,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
 
     // 自动补全 URL
     url = _normalizeUrl(url);
+    AppLogger.info('用户开始解析 URL: $url');
 
     ref.read(isLoadingVideoInfoProvider.notifier).state = true;
     ref.read(currentVideoInfoProvider.notifier).state = null;
@@ -328,9 +329,14 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
         prefs.getString('default_video_quality') ?? '1080p';
     final videoInfo = await ytDlpService.getVideoInfo(url, customUA: customUA);
     // 解析完成后一次性查询当前域名的 Cookie 状态，供格式列表复用
-    final domainHasCookie = await _cookieService.hasCookie(
-      _cookieService.extractDomain(url),
-    );
+    final domain = _cookieService.extractDomain(url);
+    final domainHasCookie = await _cookieService.hasCookie(domain);
+    if (videoInfo != null) {
+      AppLogger.info(
+        '用户解析成功: domain=$domain, hasCookie=$domainHasCookie, '
+        'formats=${videoInfo.formats.length}, title=${videoInfo.title}',
+      );
+    }
 
     if (mounted) {
       ref.read(isLoadingVideoInfoProvider.notifier).state = false;
@@ -349,8 +355,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
               : _pickDefaultVideoFormat(formats, defaultVideoQuality);
         }
       } else {
-        final domain = _cookieService.extractDomain(url);
         final hasCookie = await _cookieService.hasCookie(domain);
+        AppLogger.error(
+          '用户解析失败: domain=$domain, hasCookie=$hasCookie, url=$url',
+        );
         if (!mounted) return;
         final loc = AppLocalizations.of(context)!;
 

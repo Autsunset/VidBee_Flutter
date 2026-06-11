@@ -293,6 +293,11 @@ class CookieService {
       // 获取应用文档目录
       final directory = await getApplicationDocumentsDirectory();
 
+      final totalCookieCount = domainCookieLines.values.fold<int>(
+        0,
+        (sum, cookies) => sum + cookies.length,
+      );
+
       // 将解析结果按 domain 分别保存
       for (final entry in domainCookieLines.entries) {
         final domain = entry.key;
@@ -333,15 +338,23 @@ class CookieService {
 
         // 3. 保存该域名的 Cookie 文件路径
         await setCookieFilePathForDomain(domain, domainCookieFile.path);
-
-        AppLogger.debug('域名 $domain 的 Cookie 已保存到: ${domainCookieFile.path}');
       }
 
       // 同时保存原始文件路径（向后兼容）
       await setCookieFilePath(filePath);
 
+      final focusedDomains = [
+        'bilibili.com',
+        'youtube.com',
+        'douyin.com',
+        'tiktok.com',
+      ].where(domainCookieLines.containsKey).join(', ');
+      final focusedSummary = focusedDomains.isEmpty
+          ? ''
+          : '，包含重点域名: $focusedDomains';
       AppLogger.debug(
-        'Netscape Cookie 文件导入成功，共解析 ${domainCookieLines.length} 个域名',
+        'Netscape Cookie 文件导入成功: '
+        '${domainCookieLines.length} 个域名, $totalCookieCount 条 Cookie$focusedSummary',
       );
       return true;
     } catch (e) {

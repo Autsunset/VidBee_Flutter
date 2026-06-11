@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,24 +9,44 @@ import 'shared/constants/app_constants.dart';
 import 'shared/i18n/app_localizations.dart';
 import 'core/providers/service_providers.dart';
 import 'core/services/services.dart';
+import 'core/utils/app_logger.dart';
 import 'core/utils/permission_helper.dart';
 import 'features/download/download.dart';
 import 'features/history/history.dart';
 import 'features/settings/settings.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await AppLogger.initialize();
 
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        AppLogger.error('Flutter 未捕获异常', details.exception, details.stack);
+      };
 
-  // 初始化通知服务
-  final notificationService = NotificationService();
-  await notificationService.initialize();
+      PlatformDispatcher.instance.onError = (error, stackTrace) {
+        AppLogger.error('Platform 未捕获异常', error, stackTrace);
+        return true;
+      };
 
-  runApp(const ProviderScope(child: VidBeeApp()));
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+
+      // 初始化通知服务
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+
+      AppLogger.info('VidBee 启动完成');
+      runApp(const ProviderScope(child: VidBeeApp()));
+    },
+    (error, stackTrace) {
+      AppLogger.error('Zone 未捕获异常', error, stackTrace);
+    },
+  );
 }
 
 class VidBeeApp extends ConsumerWidget {

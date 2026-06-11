@@ -25,6 +25,7 @@ class YtDlpService {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   static const String _prefLastYtDlpUpdateCheck = 'last_ytdlp_update_check';
+  static const String _bundledYtDlpVersion = '2026.06.09';
   static const Duration _ytDlpUpdateCheckInterval = Duration(hours: 24);
 
   final YoutubeDLFlutter _youtubeDL = YoutubeDLFlutter.instance;
@@ -65,6 +66,14 @@ class YtDlpService {
     final now = DateTime.now().millisecondsSinceEpoch;
     final lastChecked = prefs.getInt(_prefLastYtDlpUpdateCheck) ?? 0;
     if (now - lastChecked < _ytDlpUpdateCheckInterval.inMilliseconds) {
+      return;
+    }
+
+    final versionInfo = await getVersionInfo();
+    final currentVersion = versionInfo['yt-dlp'] ?? '';
+    if (_isYtDlpVersionAtLeast(currentVersion, _bundledYtDlpVersion)) {
+      await prefs.setInt(_prefLastYtDlpUpdateCheck, now);
+      AppLogger.debug('当前 yt-dlp 已是随包新版 $currentVersion，跳过自动更新');
       return;
     }
 
@@ -209,9 +218,11 @@ class YtDlpService {
       final effectiveUrl = request.url;
       final options = request.options;
 
+      final domain = CookieService().extractDomain(effectiveUrl);
+
       // 使用 getVideoInfoWithOptions 传递自定义选项
       VideoInfo info;
-      AppLogger.debug('准备解析 URL: $effectiveUrl');
+      AppLogger.info('准备解析视频: domain=$domain, url=$effectiveUrl');
       if (options.isNotEmpty) {
         AppLogger.debug('解析选项已设置: ${options.keys.join(', ')}');
         info = await _youtubeDL.getVideoInfoWithOptions(effectiveUrl, options);
@@ -219,9 +230,14 @@ class YtDlpService {
         info = await _youtubeDL.getVideoInfo(effectiveUrl);
       }
 
-      return _convertToVidbeeVideoInfo(info);
-    } catch (e) {
-      AppLogger.error('获取视频信息失败', e);
+      final converted = _convertToVidbeeVideoInfo(info);
+      AppLogger.info(
+        '视频解析成功: domain=$domain, formats=${converted.formats.length}, '
+        'title=${converted.title}',
+      );
+      return converted;
+    } catch (e, stackTrace) {
+      AppLogger.error('获取视频信息失败: url=$url', e, stackTrace);
       return null;
     }
   }
@@ -545,6 +561,28 @@ class YtDlpService {
       tags: null,
       formats: formats,
     );
+  }
+
+  bool _isYtDlpVersionAtLeast(String actual, String required) {
+    final actualParts = _parseYtDlpDateVersion(actual);
+    final requiredParts = _parseYtDlpDateVersion(required);
+    if (actualParts == null || requiredParts == null) return false;
+
+    for (var i = 0; i < requiredParts.length; i++) {
+      if (actualParts[i] > requiredParts[i]) return true;
+      if (actualParts[i] < requiredParts[i]) return false;
+    }
+    return true;
+  }
+
+  List<int>? _parseYtDlpDateVersion(String value) {
+    final match = RegExp(r'(\d{4})\.(\d{2})\.(\d{2})').firstMatch(value);
+    if (match == null) return null;
+    return [
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    ];
   }
 
   /// 检查 UA 是否为桌面端 UA
