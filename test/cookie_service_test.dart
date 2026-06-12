@@ -45,9 +45,16 @@ invalid line
       final bilibiliPath = await service.getCookieFilePathForDomain(
         'www.bilibili.com',
       );
+      final bilibiliShortPath = await service.getCookieFilePathForDomain(
+        'b23.tv',
+      );
 
       expect(youtubePath, isNotNull);
       expect(bilibiliPath, isNotNull);
+      expect(bilibiliShortPath, bilibiliPath);
+      expect(await service.hasCookie('b23.tv'), isTrue);
+      expect(service.cookieLookupDomain('b23.tv'), 'bilibili.com');
+      expect(service.isBilibiliDomain('b23.tv'), isTrue);
       expect(await File(youtubePath!).readAsString(), contains('SID'));
       expect(await File(bilibiliPath!).readAsString(), contains('SESSDATA'));
     },

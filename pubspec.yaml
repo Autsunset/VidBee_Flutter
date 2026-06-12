@@ -2,7 +2,7 @@ name: vidbee_flutter
 description: "A modern, open-source video downloader for Android powered by yt-dlp."
 publish_to: 'none'
 
-version: 1.0.11+12
+version: 1.0.12+13
 
 environment:
   sdk: ^3.11.4

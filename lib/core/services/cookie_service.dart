@@ -19,20 +19,27 @@ class CookieService {
   /// 保存网站的 Cookie
   Future<void> saveCookie(String domain, String cookie) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_cookieKeyPrefix$domain', cookie);
+    final normalizedDomain = _normalizeDomain(domain);
+    await prefs.setString('$_cookieKeyPrefix$normalizedDomain', cookie);
   }
 
   /// 获取网站的 Cookie
   Future<String?> getCookie(String domain) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('$_cookieKeyPrefix$domain');
+    final normalizedDomain = _normalizeDomain(domain);
+    return prefs.getString('$_cookieKeyPrefix$normalizedDomain') ??
+        prefs.getString('$_cookieKeyPrefix$domain');
   }
 
   /// 删除网站的 Cookie（包括 SharedPreferences 和 WebView CookieManager）
   /// 注意：WebView CookieManager 会清理所有 Cookie，因为 API 不支持按域名删除
   Future<void> removeCookie(String domain) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_cookieKeyPrefix$domain');
+    final normalizedDomain = _normalizeDomain(domain);
+    await prefs.remove('$_cookieKeyPrefix$normalizedDomain');
+    if (normalizedDomain != domain) {
+      await prefs.remove('$_cookieKeyPrefix$domain');
+    }
 
     // 清理 WebView CookieManager（会清理所有 Cookie）
     // 这是因为 WebView CookieManager API 不支持按域名删除
@@ -108,11 +115,21 @@ class CookieService {
     }
   }
 
+  /// 返回用于查找 Cookie 的规范域名。
+  String cookieLookupDomain(String domain) => _normalizeDomain(domain);
+
+  /// 判断域名是否应按 Bilibili 处理。
+  bool isBilibiliDomain(String domain) {
+    final normalizedDomain = _normalizeDomain(domain);
+    return normalizedDomain == 'bilibili.com' ||
+        normalizedDomain.endsWith('.bilibili.com');
+  }
+
   /// 检查格式是否需要登录
   /// Bilibili 的高清晰度格式通常需要登录
   bool formatRequiresLogin(String formatId, String domain) {
     // Bilibili 的高清晰度格式
-    if (domain.contains('bilibili.com')) {
+    if (isBilibiliDomain(domain)) {
       // 1080p+ 格式需要登录
       final highQualityFormats = [
         '64',
@@ -394,7 +411,8 @@ class CookieService {
     final prefs = await SharedPreferences.getInstance();
     // 标准化域名（移除 www. 前缀）
     final normalizedDomain = _normalizeDomain(domain);
-    return prefs.getString('$_cookieFilePathPrefix$normalizedDomain');
+    return prefs.getString('$_cookieFilePathPrefix$normalizedDomain') ??
+        prefs.getString('$_cookieFilePathPrefix$domain');
   }
 
   /// 保存指定域名的 Cookie 文件路径
@@ -437,6 +455,9 @@ class CookieService {
     var normalized = domain.toLowerCase().trim();
     if (normalized.startsWith('www.')) {
       normalized = normalized.substring(4);
+    }
+    if (normalized == 'b23.tv') {
+      return 'bilibili.com';
     }
     return normalized;
   }

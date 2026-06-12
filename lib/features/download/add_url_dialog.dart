@@ -210,7 +210,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
             final format = entry.value;
             final isSelected = selectedFormat?.formatId == format.formatId;
             // 对于 Bilibili，只有第一个（最高质量）格式需要登录
-            final requiresLogin = domain.contains('bilibili.com') && index == 0;
+            final requiresLogin =
+                _cookieService.isBilibiliDomain(domain) && index == 0;
             final isDisabled = requiresLogin && !_hasCookieForDomain;
 
             return FilterChip(
@@ -242,7 +243,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
             );
           }).toList(),
         ),
-        if (!_hasCookieForDomain && domain.contains('bilibili.com'))
+        if (!_hasCookieForDomain && _cookieService.isBilibiliDomain(domain))
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
@@ -369,7 +370,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
           } else {
             errorMessage = loc.parseFailedFresh;
           }
-        } else if (domain.contains('bilibili.com')) {
+        } else if (_cookieService.isBilibiliDomain(domain)) {
           errorMessage = loc.parseFailedBilibili;
         } else {
           errorMessage = loc.parseFailedDefault;

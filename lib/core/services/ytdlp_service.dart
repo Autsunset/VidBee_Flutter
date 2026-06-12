@@ -161,7 +161,8 @@ class YtDlpService {
     var effectiveUrl = url;
     var effectiveUA = customUA ?? '';
 
-    final isBilibili = effectiveUrl.contains('bilibili.com');
+    final originalDomain = cookieService.extractDomain(effectiveUrl);
+    final isBilibili = cookieService.isBilibiliDomain(originalDomain);
     if (isBilibili) {
       effectiveUrl = effectiveUrl.replaceFirst(
         'm.bilibili.com',
