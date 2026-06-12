@@ -140,6 +140,17 @@ class AppLocalizations {
   String get updating => _translate('updating');
   String get updateFailed => _translate('updateFailed');
   String get updateSuccess => _translate('updateSuccess');
+  String get currentVersion => _translate('currentVersion');
+  String get latestVersion => _translate('latestVersion');
+  String get downloadPackage => _translate('downloadPackage');
+  String get downloadAndInstall => _translate('downloadAndInstall');
+  String get installPackageReady => _translate('installPackageReady');
+  String get installPermissionRequired =>
+      _translate('installPermissionRequired');
+  String get installPermissionMessage => _translate('installPermissionMessage');
+  String get noCompatibleApk => _translate('noCompatibleApk');
+  String get openReleasePage => _translate('openReleasePage');
+  String get checkingForUpdates => _translate('checkingForUpdates');
   String get restartApp => _translate('restartApp');
   String get webViewLogin => _translate('webViewLogin');
   String get manualCookieInput => _translate('manualCookieInput');

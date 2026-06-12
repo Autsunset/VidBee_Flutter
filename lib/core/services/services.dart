@@ -4,3 +4,4 @@ export 'download_service.dart';
 export 'history_service.dart';
 export 'cookie_service.dart';
 export 'notification_service.dart';
+export 'app_update_service.dart';

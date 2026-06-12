@@ -1,6 +1,7 @@
 // 设置页面
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../../shared/constants/app_constants.dart';
 import '../../core/providers/service_providers.dart';
+import '../../core/services/app_update_service.dart';
 import '../../core/services/cookie_service.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
@@ -36,6 +38,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Map<String, String> _cookies = {};
   Map<String, String> _versionInfo = {};
   bool _isUpdating = false;
+  bool _isCheckingAppUpdate = false;
+  bool _isDownloadingAppUpdate = false;
+  double? _appUpdateProgress;
+  AppReleaseInfo? _latestAppRelease;
   String? _cookieFilePath;
 
   String _locTemplate(String template, Map<String, Object> values) {
@@ -158,6 +164,226 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         });
       }
     }
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    if (_isCheckingAppUpdate || _isDownloadingAppUpdate) return;
+    final loc = AppLocalizations.of(context)!;
+
+    setState(() {
+      _isCheckingAppUpdate = true;
+      _appUpdateProgress = null;
+    });
+
+    try {
+      final updateService = ref.read(appUpdateServiceProvider);
+      final release = await updateService.checkForUpdate();
+      if (!mounted) return;
+
+      setState(() {
+        _latestAppRelease = release;
+      });
+
+      if (!release.isUpdateAvailable) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(loc.noUpdate)));
+        return;
+      }
+
+      if (release.asset == null) {
+        await _showNoCompatibleApkDialog(release);
+        return;
+      }
+
+      final install = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(loc.updateAvailable),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${loc.currentVersion}: ${release.currentVersion}'),
+              Text('${loc.latestVersion}: ${release.latestVersion}'),
+              const SizedBox(height: 8),
+              Text('${loc.downloadPackage}: ${release.asset!.name}'),
+              Text('${loc.size}: ${_formatBytes(release.asset!.size)}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(loc.cancel),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.system_update_alt),
+              label: Text(loc.downloadAndInstall),
+            ),
+          ],
+        ),
+      );
+
+      if (install == true) {
+        await _downloadAndInstallAppUpdate(release);
+      }
+    } catch (e) {
+      AppLogger.error('检查应用更新失败', e);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${loc.updateFailed}: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingAppUpdate = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadAndInstallAppUpdate(AppReleaseInfo release) async {
+    final loc = AppLocalizations.of(context)!;
+
+    setState(() {
+      _isDownloadingAppUpdate = true;
+      _appUpdateProgress = 0;
+    });
+
+    try {
+      final updateService = ref.read(appUpdateServiceProvider);
+      final apk = await updateService.downloadReleaseAsset(
+        release,
+        onProgress: (receivedBytes, totalBytes) {
+          if (!mounted || totalBytes == null || totalBytes == 0) return;
+          setState(() {
+            _appUpdateProgress = receivedBytes / totalBytes;
+          });
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _appUpdateProgress = 1;
+      });
+
+      await updateService.installApk(apk.path);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(loc.installPackageReady)));
+    } on PlatformException catch (e) {
+      AppLogger.error('安装应用更新失败', e);
+      if (!mounted) return;
+      if (e.code == 'INSTALL_PERMISSION_REQUIRED') {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(loc.installPermissionRequired),
+            content: Text(loc.installPermissionMessage),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(loc.ok),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${loc.updateFailed}: ${e.message ?? e.code}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      AppLogger.error('下载应用更新失败', e);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${loc.updateFailed}: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingAppUpdate = false;
+          _appUpdateProgress = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _showNoCompatibleApkDialog(AppReleaseInfo release) async {
+    final loc = AppLocalizations.of(context)!;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(loc.noCompatibleApk),
+        content: Text(
+          '${loc.latestVersion}: ${release.latestVersion}\n${release.releaseName}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(loc.cancel),
+          ),
+          FilledButton(
+            onPressed: release.releaseUrl.isEmpty
+                ? null
+                : () async {
+                    final uri = Uri.parse(release.releaseUrl);
+                    Navigator.of(context).pop();
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+            child: Text(loc.openReleasePage),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _buildAppUpdateSubtitle(AppLocalizations loc) {
+    if (_isDownloadingAppUpdate) {
+      final progress = _appUpdateProgress;
+      if (progress == null) return loc.updating;
+      return '${loc.updating} ${(progress * 100).clamp(0, 100).toStringAsFixed(0)}%';
+    }
+    if (_isCheckingAppUpdate) return loc.checkingForUpdates;
+
+    final release = _latestAppRelease;
+    if (release == null) {
+      return '${loc.currentVersion}: ${AppConstants.appVersion}';
+    }
+    if (release.isUpdateAvailable) {
+      return '${loc.updateAvailable}: ${release.currentVersion} -> ${release.latestVersion}';
+    }
+    return '${loc.noUpdate}: ${release.currentVersion}';
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var size = bytes.toDouble();
+    var unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    final fixed = unitIndex == 0 ? 0 : 1;
+    return '${size.toStringAsFixed(fixed)} ${units[unitIndex]}';
   }
 
   Future<void> _initializeDownloadPath() async {
@@ -889,6 +1115,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           trailing: _isUpdating ? null : const Icon(Icons.chevron_right),
           onTap: _isUpdating ? null : _updateYtDlp,
+        ),
+        ListTile(
+          leading: _isCheckingAppUpdate || _isDownloadingAppUpdate
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.system_update_alt_outlined),
+          title: Text(loc.checkForUpdates),
+          subtitle: Text(_buildAppUpdateSubtitle(loc)),
+          trailing: _isCheckingAppUpdate || _isDownloadingAppUpdate
+              ? null
+              : const Icon(Icons.chevron_right),
+          onTap: _isCheckingAppUpdate || _isDownloadingAppUpdate
+              ? null
+              : _checkForAppUpdate,
         ),
         ListTile(
           leading: const Icon(Icons.delete_sweep_outlined),

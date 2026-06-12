@@ -15,6 +15,12 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService();
 });
 
+final appUpdateServiceProvider = Provider<AppUpdateService>((ref) {
+  final service = AppUpdateService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
 final historyServiceProvider = Provider<HistoryService>((ref) {
   final dao = ref.watch(downloadHistoryDaoProvider);
   final service = HistoryService(dao);
