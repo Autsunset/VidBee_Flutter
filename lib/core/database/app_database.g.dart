@@ -1506,11 +1506,23 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DownloadHistoryTable downloadHistory = $DownloadHistoryTable(
     this,
   );
+  late final Index idxDownloadHistoryDownloadedAt = Index(
+    'idx_download_history_downloaded_at',
+    'CREATE INDEX idx_download_history_downloaded_at ON download_history (downloaded_at)',
+  );
+  late final Index idxDownloadHistoryPlaylistId = Index(
+    'idx_download_history_playlist_id',
+    'CREATE INDEX idx_download_history_playlist_id ON download_history (playlist_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [downloadHistory];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    downloadHistory,
+    idxDownloadHistoryDownloadedAt,
+    idxDownloadHistoryPlaylistId,
+  ];
 }
 
 typedef $$DownloadHistoryTableCreateCompanionBuilder =

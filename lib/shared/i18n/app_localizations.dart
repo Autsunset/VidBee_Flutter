@@ -254,6 +254,31 @@ class AppLocalizations {
   String get updateYtDlpRetry => _translate('updateYtDlpRetry');
   String get loginSuccessWithSite => _translate('loginSuccessWithSite');
 
+  String get logs => _translate('logs');
+  String get logsSubtitle => _translate('logsSubtitle');
+  String get clearCacheConfirm => _translate('clearCacheConfirm');
+  String get cacheCleared => _translate('cacheCleared');
+  String get cacheClearFailed => _translate('cacheClearFailed');
+  String get clearAction => _translate('clearAction');
+  String get cookiePasteHint => _translate('cookiePasteHint');
+  String get cookieHowToGet => _translate('cookieHowToGet');
+  String get pasteCookieHint => _translate('pasteCookieHint');
+  String get cookieSavedForDomain => _translate('cookieSavedForDomain');
+  String get addCookie => _translate('addCookie');
+  String get domainLabel => _translate('domainLabel');
+  String get domainHint => _translate('domainHint');
+  String get clearAllCookies => _translate('clearAllCookies');
+  String get clearAllCookiesConfirm => _translate('clearAllCookiesConfirm');
+  String get allCookiesCleared => _translate('allCookiesCleared');
+  String get appDescription => _translate('appDescription');
+  String get importantNote => _translate('importantNote');
+  String get bilibiliUaWarning => _translate('bilibiliUaWarning');
+  String get customUaDescription => _translate('customUaDescription');
+  String get commonUaExamples => _translate('commonUaExamples');
+  String get pasteUaHint => _translate('pasteUaHint');
+  String get restoreDefault => _translate('restoreDefault');
+  String get uaRestoredDefault => _translate('uaRestoredDefault');
+
   String _translate(String key) {
     switch (locale.languageCode) {
       case 'zh':

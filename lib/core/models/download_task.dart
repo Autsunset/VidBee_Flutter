@@ -18,7 +18,7 @@ class DownloadProgress {
   final String? downloaded;
   final String? total;
 
-  DownloadProgress({
+  const DownloadProgress({
     required this.percent,
     this.currentSpeed,
     this.eta,
@@ -61,6 +61,20 @@ class DownloadProgress {
       total: total ?? this.total,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DownloadProgress &&
+          other.percent == percent &&
+          other.currentSpeed == currentSpeed &&
+          other.eta == eta &&
+          other.downloaded == downloaded &&
+          other.total == total;
+
+  @override
+  int get hashCode =>
+      Object.hash(percent, currentSpeed, eta, downloaded, total);
 }
 
 class DownloadTask {
@@ -93,7 +107,7 @@ class DownloadTask {
   final DownloadProgress? progress;
   final String? error;
 
-  DownloadTask({
+  const DownloadTask({
     required this.id,
     required this.url,
     this.title,

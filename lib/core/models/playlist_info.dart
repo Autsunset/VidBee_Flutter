@@ -7,7 +7,7 @@ class PlaylistEntry {
   final int index;
   final String? thumbnail;
 
-  PlaylistEntry({
+  const PlaylistEntry({
     required this.id,
     required this.title,
     required this.url,
@@ -42,7 +42,7 @@ class PlaylistInfo {
   final List<PlaylistEntry> entries;
   final int entryCount;
 
-  PlaylistInfo({
+  const PlaylistInfo({
     required this.id,
     required this.title,
     required this.entries,
@@ -82,7 +82,7 @@ class PlaylistDownloadEntry {
   final String url;
   final int index;
 
-  PlaylistDownloadEntry({
+  const PlaylistDownloadEntry({
     required this.downloadId,
     required this.entryId,
     required this.title,
@@ -121,7 +121,7 @@ class PlaylistDownloadResult {
   final int endIndex;
   final List<PlaylistDownloadEntry> entries;
 
-  PlaylistDownloadResult({
+  const PlaylistDownloadResult({
     required this.groupId,
     required this.playlistId,
     required this.playlistTitle,

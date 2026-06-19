@@ -221,6 +221,34 @@ class AppLocalizationsJa {
     'updateYtDlpRetry': 'yt-dlpの更新に失敗しました。後でもう一度お試しください。',
     'loginSuccessWithSite': '{site} のログインに成功しました。',
     'clearCookieFile': 'ファイルを削除',
+    'logs': 'ログ',
+    'logsSubtitle': '日付と時刻でログをコピーまたはエクスポート',
+    'clearCacheConfirm': 'すべてのキャッシュを削除しますか？ダウンロード済みの動画は削除されません。',
+    'cacheCleared': 'キャッシュを削除しました',
+    'cacheClearFailed': 'キャッシュの削除に失敗しました',
+    'clearAction': '削除',
+    'cookiePasteHint': 'ブラウザから Cookie をコピーして下に貼り付けてください：',
+    'cookieHowToGet':
+        '取得方法：\n1. ブラウザで {domain} にログイン\n2. F12 を押して開発者ツールを開く\n3. Network タブに切り替える\n4. ページを更新\n5. 任意のリクエストをクリック\n6. Headers から Cookie を見つける',
+    'pasteCookieHint': 'Cookie を貼り付け...',
+    'cookieSavedForDomain': '{domain} の Cookie を保存しました',
+    'addCookie': 'Cookie を追加',
+    'domainLabel': 'ドメイン',
+    'domainHint': '例：youtube.com',
+    'clearAllCookies': 'すべての Cookie を削除',
+    'clearAllCookiesConfirm': '保存されたすべての Cookie を削除しますか？',
+    'allCookiesCleared': 'すべての Cookie を削除しました',
+    'appDescription': '世界中のほぼすべてのウェブサイトから動画をダウンロードできる Android アプリ',
+    'importantNote': '重要なお知らせ',
+    'bilibiliUaWarning':
+        'Bilibili の解析にはデスクトップ UA（Windows/Mac）が必要です。モバイル UA では解析に失敗します！',
+    'customUaDescription':
+        '特定の UA を必要とするサイト向けにカスタム User-Agent を設定します。空欄の場合は既定の UA を使用します。',
+    'commonUaExamples':
+        'よくある UA の例：\n• Douyin デスクトップ：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n• モバイル：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    'pasteUaHint': 'User-Agent を貼り付け...',
+    'restoreDefault': '既定に戻す',
+    'uaRestoredDefault': '既定の User-Agent に戻しました',
   };
 
   String getLocalizedValue(String key) {

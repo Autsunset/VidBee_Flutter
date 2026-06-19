@@ -221,6 +221,34 @@ class AppLocalizationsKo {
     'updateYtDlpRetry': 'yt-dlp 업데이트에 실패했습니다. 나중에 다시 시도하세요.',
     'loginSuccessWithSite': '{site} 로그인 성공.',
     'clearCookieFile': '파일 삭제',
+    'logs': '로그',
+    'logsSubtitle': '날짜 및 시간별로 로그 복사 또는 내보내기',
+    'clearCacheConfirm': '모든 캐시를 지우시겠습니까? 다운로드한 동영상은 삭제되지 않습니다.',
+    'cacheCleared': '캐시가 지워졌습니다',
+    'cacheClearFailed': '캐시 지우기에 실패했습니다',
+    'clearAction': '지우기',
+    'cookiePasteHint': '브라우저에서 쿠키를 복사하여 아래에 붙여넣으세요:',
+    'cookieHowToGet':
+        '가져오는 방법:\n1. 브라우저에서 {domain}에 로그인\n2. F12를 눌러 개발자 도구 열기\n3. Network 탭으로 전환\n4. 페이지 새로고침\n5. 아무 요청이나 클릭\n6. Headers에서 Cookie 찾기',
+    'pasteCookieHint': '쿠키 붙여넣기...',
+    'cookieSavedForDomain': '{domain} 쿠키가 저장되었습니다',
+    'addCookie': '쿠키 추가',
+    'domainLabel': '도메인',
+    'domainHint': '예: youtube.com',
+    'clearAllCookies': '모든 쿠키 지우기',
+    'clearAllCookiesConfirm': '저장된 모든 쿠키를 지우시겠습니까?',
+    'allCookiesCleared': '모든 쿠키가 지워졌습니다',
+    'appDescription': '전 세계 거의 모든 웹사이트에서 동영상을 다운로드하는 Android 앱',
+    'importantNote': '중요 안내',
+    'bilibiliUaWarning':
+        'Bilibili 파싱에는 데스크톱 UA(Windows/Mac)가 필요합니다. 모바일 UA를 사용하면 파싱에 실패합니다!',
+    'customUaDescription':
+        '특정 UA가 필요한 사이트를 위해 사용자 지정 User-Agent를 설정합니다. 비워두면 기본 UA를 사용합니다.',
+    'commonUaExamples':
+        '일반적인 UA 예시:\n• Douyin 데스크톱: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n• Chrome: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n• 모바일: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    'pasteUaHint': 'User-Agent 붙여넣기...',
+    'restoreDefault': '기본값 복원',
+    'uaRestoredDefault': '기본 User-Agent로 복원되었습니다',
   };
 
   String getLocalizedValue(String key) {

@@ -16,7 +16,7 @@ class VideoFormat {
   final String? videoExt;
   final String? audioExt;
 
-  VideoFormat({
+  const VideoFormat({
     required this.formatId,
     required this.ext,
     this.width,
@@ -139,6 +139,47 @@ class VideoFormat {
     // 如果有音频编码，或者没有视频（纯音频），认为有音频
     return (acodec != null && acodec != 'none') || !hasVideo;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoFormat &&
+          other.formatId == formatId &&
+          other.ext == ext &&
+          other.width == width &&
+          other.height == height &&
+          other.fps == fps &&
+          other.vcodec == vcodec &&
+          other.acodec == acodec &&
+          other.filesize == filesize &&
+          other.filesizeApprox == filesizeApprox &&
+          other.formatNote == formatNote &&
+          other.tbr == tbr &&
+          other.quality == quality &&
+          other.protocol == protocol &&
+          other.language == language &&
+          other.videoExt == videoExt &&
+          other.audioExt == audioExt;
+
+  @override
+  int get hashCode => Object.hash(
+    formatId,
+    ext,
+    width,
+    height,
+    fps,
+    vcodec,
+    acodec,
+    filesize,
+    filesizeApprox,
+    formatNote,
+    tbr,
+    quality,
+    protocol,
+    language,
+    videoExt,
+    audioExt,
+  );
 }
 
 class VideoInfo {
@@ -154,7 +195,7 @@ class VideoInfo {
   final List<String>? tags;
   final List<VideoFormat> formats;
 
-  VideoInfo({
+  const VideoInfo({
     required this.id,
     required this.title,
     this.thumbnail,
@@ -210,7 +251,8 @@ class VideoInfo {
 
   String get durationFormatted {
     if (duration == null) return '';
-    final minutes = (duration! ~/ 60).toString().padLeft(2, '0');
+    // 分钟取小时内余量，避免 >=1h 时显示总分钟数（如 01:61:01）。
+    final minutes = ((duration! % 3600) ~/ 60).toString().padLeft(2, '0');
     final seconds = (duration! % 60).toString().padLeft(2, '0');
     if (duration! >= 3600) {
       final hours = (duration! ~/ 3600).toString().padLeft(2, '0');

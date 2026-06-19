@@ -28,6 +28,13 @@ class YtDlpService {
   static const String _bundledYtDlpVersion = '2026.06.09';
   static const Duration _ytDlpUpdateCheckInterval = Duration(hours: 24);
 
+  /// yt-dlp 自动更新的最大重试次数与每次重试间隔。
+  static const int _ytDlpUpdateMaxRetries = 3;
+  static const Duration _ytDlpUpdateRetryDelay = Duration(seconds: 2);
+
+  /// 默认音频质量（0=最佳，9=最差），与设置页默认值保持一致。
+  static const int _defaultAudioQuality = 3;
+
   final YoutubeDLFlutter _youtubeDL = YoutubeDLFlutter.instance;
   bool _isInitialized = false;
   final Map<String, StreamSubscription> _subscriptions = {};
@@ -83,9 +90,11 @@ class YtDlpService {
 
   /// 确保 yt-dlp 更新到最新版本（带重试机制）
   Future<void> _updateYtDlpWithRetry() async {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < _ytDlpUpdateMaxRetries; i++) {
       try {
-        AppLogger.debug('正在自动更新 yt-dlp (尝试 ${i + 1}/3)...');
+        AppLogger.debug(
+          '正在自动更新 yt-dlp (尝试 ${i + 1}/$_ytDlpUpdateMaxRetries)...',
+        );
         final result = await _youtubeDL.updateYoutubeDL(
           channel: UpdateChannel.stable,
         );
@@ -98,8 +107,8 @@ class YtDlpService {
       } catch (e) {
         AppLogger.error('第${i + 1}次更新 yt-dlp 出错', e);
       }
-      // 等待2秒后重试
-      await Future.delayed(Duration(seconds: 2));
+      // 等待后重试
+      await Future.delayed(_ytDlpUpdateRetryDelay);
     }
     AppLogger.error('yt-dlp 自动更新失败，将使用内置版本');
   }
@@ -285,7 +294,10 @@ class YtDlpService {
 
       final prefs = await SharedPreferences.getInstance();
       final configuredAudioQuality =
-          int.tryParse(prefs.getString('default_audio_quality') ?? '3') ?? 3;
+          int.tryParse(
+            prefs.getString('default_audio_quality') ?? '$_defaultAudioQuality',
+          ) ??
+          _defaultAudioQuality;
 
       // 确定下载格式
       String format;

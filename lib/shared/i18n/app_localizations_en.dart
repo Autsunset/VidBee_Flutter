@@ -224,6 +224,36 @@ class AppLocalizationsEn {
     'updateYtDlpRetry': 'yt-dlp update failed. Please try again later.',
     'loginSuccessWithSite': '{site} login successful.',
     'clearCookieFile': 'Clear file',
+    'logs': 'Logs',
+    'logsSubtitle': 'Copy or export logs by date and time',
+    'clearCacheConfirm':
+        'Clear all cache? This will not delete downloaded videos.',
+    'cacheCleared': 'Cache cleared',
+    'cacheClearFailed': 'Failed to clear cache',
+    'clearAction': 'Clear',
+    'cookiePasteHint': 'Copy the Cookie from your browser and paste it below:',
+    'cookieHowToGet':
+        'How to get it:\n1. Log in to {domain} in your browser\n2. Press F12 to open developer tools\n3. Switch to the Network tab\n4. Refresh the page\n5. Click any request\n6. Find the Cookie in the Headers',
+    'pasteCookieHint': 'Paste Cookie...',
+    'cookieSavedForDomain': '{domain} Cookie saved',
+    'addCookie': 'Add Cookie',
+    'domainLabel': 'Domain',
+    'domainHint': 'e.g. youtube.com',
+    'clearAllCookies': 'Clear all Cookies',
+    'clearAllCookiesConfirm': 'Clear all saved Cookies?',
+    'allCookiesCleared': 'All Cookies cleared',
+    'appDescription':
+        'An Android app to download videos from almost any website worldwide',
+    'importantNote': 'Important',
+    'bilibiliUaWarning':
+        'Bilibili parsing requires a desktop UA (Windows/Mac); a mobile UA will cause parsing to fail!',
+    'customUaDescription':
+        'Set a custom User-Agent string for sites that require a specific UA. Leave empty to use the default.',
+    'commonUaExamples':
+        'Common UA examples:\n• Douyin desktop: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n• Chrome: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n• Mobile: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    'pasteUaHint': 'Paste User-Agent...',
+    'restoreDefault': 'Restore default',
+    'uaRestoredDefault': 'Default User-Agent restored',
   };
 
   String getLocalizedValue(String key) {

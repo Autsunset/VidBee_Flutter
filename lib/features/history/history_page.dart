@@ -2,13 +2,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/download_task.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
 import '../../shared/i18n/app_localizations.dart';
+import '../../shared/widgets/task_widgets.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -229,34 +229,11 @@ class HistoryTaskCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              if (task.thumbnail != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: task.thumbnail!,
-                    width: 100,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => Container(
-                      width: 100,
-                      height: 56,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.videocam_outlined,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    placeholder: (context, url) => Container(
-                      width: 100,
-                      height: 56,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                    ),
-                  ),
-                ),
+              TaskThumbnail(
+                thumbnailUrl: task.thumbnail,
+                width: 100,
+                height: 56,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -271,7 +248,7 @@ class HistoryTaskCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        _buildStatusChip(context),
+                        TaskStatusChip(status: task.status, loc: loc),
                         const SizedBox(width: 8),
                         if (task.type == DownloadType.audio)
                           Chip(
@@ -293,37 +270,6 @@ class HistoryTaskCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildStatusChip(BuildContext context) {
-    Color color;
-    String label;
-
-    switch (task.status) {
-      case DownloadStatus.completed:
-        color = Colors.green;
-        label = loc.completedTask;
-        break;
-      case DownloadStatus.error:
-        color = Colors.red;
-        label = loc.failedTask;
-        break;
-      case DownloadStatus.cancelled:
-        color = Colors.grey;
-        label = loc.cancelledTask;
-        break;
-      default:
-        color = Colors.grey;
-        label = loc.unknown;
-    }
-
-    return Chip(
-      label: Text(label),
-      backgroundColor: color.withValues(alpha: 0.1),
-      labelStyle: TextStyle(color: color),
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
     );
   }
 }

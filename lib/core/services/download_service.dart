@@ -11,6 +11,7 @@ import 'ytdlp_service.dart';
 import 'history_service.dart';
 import 'notification_service.dart';
 import '../utils/event_bus.dart';
+import '../utils/app_logger.dart';
 
 /// 下载服务类
 class DownloadService {
@@ -37,6 +38,14 @@ class DownloadService {
   static const String _prefMaxConcurrent = 'max_concurrent_downloads';
   static const String _prefNotificationsEnabled = 'enable_notification';
   static const String _prefIncompleteTasks = 'incomplete_download_tasks';
+
+  /// 去重集合 / 文件名缓存的最大保留条目数，防止长会话下无上限增长。
+  /// 重复完成事件几乎与首次同时到达，保留最近若干条即足以去重。
+  static const int _maxRetainedTaskIds = 256;
+
+  /// 历史记录文件名回填的轮询重试次数与间隔。
+  static const int _historyUpdateMaxAttempts = 5;
+  static const Duration _historyUpdateRetryDelay = Duration(milliseconds: 20);
 
   StreamSubscription? _ytdlpProgressSubscription;
   StreamSubscription? _ytdlpStatusSubscription;
@@ -170,6 +179,7 @@ class DownloadService {
   /// 任务完成处理
   Future<void> _onTaskComplete(DownloadTask task) async {
     if (!_completionHandledTaskIds.add(task.id)) return;
+    _trimRetainedIds(_completionHandledTaskIds);
 
     _activeTasks.remove(task.id);
 
@@ -215,33 +225,50 @@ class DownloadService {
     _notifyTaskUpdate(updatedTask);
     await _persistIncompleteTasks();
 
-    final result = await _ytDlpService.startDownload(updatedTask);
-    if (result == null) {
+    try {
+      final result = await _ytDlpService.startDownload(updatedTask);
+      if (result == null) {
+        final currentTask = _activeTasks[task.id];
+        if (currentTask != null &&
+            currentTask.status == DownloadStatus.downloading) {
+          final failedTask = currentTask.copyWith(
+            status: DownloadStatus.error,
+            error: currentTask.error ?? '下载进程结束但没有返回输出文件',
+          );
+          _activeTasks[task.id] = failedTask;
+          _notifyTaskUpdate(failedTask);
+          await _onTaskComplete(failedTask);
+        }
+      } else {
+        // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
+        // 因此既写入活动任务，也尝试更新已落库的历史记录。
+        final savedFileName = _fileNameFromPath(result);
+        final activeTask = _activeTasks[task.id];
+        if (activeTask != null) {
+          _activeTasks[task.id] = activeTask.copyWith(
+            savedFileName: savedFileName,
+            downloadPath: result,
+          );
+        }
+        _resolvedFileNames[task.id] = result;
+        _trimResolvedFileNames();
+        await _updateHistorySavedFile(task.id, result, savedFileName);
+        await _persistIncompleteTasks();
+      }
+    } catch (e, stackTrace) {
+      // 防御性处理：startDownload 抛出未预期异常时，避免任务卡在 downloading
+      // 状态而长期占用并发槽位，导致整个队列停摆。
+      AppLogger.error('下载任务执行异常', e, stackTrace);
       final currentTask = _activeTasks[task.id];
-      if (currentTask != null &&
-          currentTask.status == DownloadStatus.downloading) {
+      if (currentTask != null) {
         final failedTask = currentTask.copyWith(
           status: DownloadStatus.error,
-          error: currentTask.error ?? '下载进程结束但没有返回输出文件',
+          error: currentTask.error ?? '下载执行异常: $e',
         );
         _activeTasks[task.id] = failedTask;
         _notifyTaskUpdate(failedTask);
         await _onTaskComplete(failedTask);
       }
-    } else {
-      // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
-      // 因此既写入活动任务，也尝试更新已落库的历史记录。
-      final savedFileName = _fileNameFromPath(result);
-      final activeTask = _activeTasks[task.id];
-      if (activeTask != null) {
-        _activeTasks[task.id] = activeTask.copyWith(
-          savedFileName: savedFileName,
-          downloadPath: result,
-        );
-      }
-      _resolvedFileNames[task.id] = result;
-      await _updateHistorySavedFile(task.id, result, savedFileName);
-      await _persistIncompleteTasks();
     }
   }
 
@@ -250,7 +277,7 @@ class DownloadService {
     String path,
     String savedFileName,
   ) async {
-    for (var attempt = 0; attempt < 5; attempt++) {
+    for (var attempt = 0; attempt < _historyUpdateMaxAttempts; attempt++) {
       final updated = await _historyService.updateSavedFile(
         taskId,
         path,
@@ -258,7 +285,7 @@ class DownloadService {
       );
       if (updated) return;
       if (!_completionHandledTaskIds.contains(taskId)) return;
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(_historyUpdateRetryDelay);
     }
   }
 
@@ -267,6 +294,20 @@ class DownloadService {
     final normalized = path.replaceAll('\\', '/');
     final segments = normalized.split('/');
     return segments.isEmpty ? path : segments.last;
+  }
+
+  /// 淘汰最早写入的去重 ID（LinkedHashSet 保留插入顺序）。
+  void _trimRetainedIds(Set<String> ids) {
+    while (ids.length > _maxRetainedTaskIds) {
+      ids.remove(ids.first);
+    }
+  }
+
+  /// 淘汰最早写入的已解析文件名缓存（兜底，正常路径在写入历史时已移除）。
+  void _trimResolvedFileNames() {
+    while (_resolvedFileNames.length > _maxRetainedTaskIds) {
+      _resolvedFileNames.remove(_resolvedFileNames.keys.first);
+    }
   }
 
   /// 添加下载任务
@@ -436,7 +477,8 @@ class DownloadService {
       for (final task in interruptedTasks) {
         await _saveToHistory(task);
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      AppLogger.error('恢复未完成任务失败，已清空待恢复队列', e, stackTrace);
       await prefs.remove(_prefIncompleteTasks);
       return;
     }

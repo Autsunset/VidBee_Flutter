@@ -219,6 +219,33 @@ class AppLocalizationsZh {
     'updateYtDlpRetry': 'yt-dlp 更新失败，请稍后重试。',
     'loginSuccessWithSite': '{site} 登录成功！',
     'clearCookieFile': '清除文件',
+    'logs': '日志',
+    'logsSubtitle': '按日期和时间复制或导出日志',
+    'clearCacheConfirm': '确定要清除所有缓存吗？这不会删除已下载的视频。',
+    'cacheCleared': '缓存已清除',
+    'cacheClearFailed': '缓存清理失败',
+    'clearAction': '清除',
+    'cookiePasteHint': '请从浏览器中复制 Cookie 并粘贴到下方：',
+    'cookieHowToGet':
+        '获取方法：\n1. 在浏览器中登录 {domain}\n2. 按 F12 打开开发者工具\n3. 切换到 Network 标签\n4. 刷新页面\n5. 点击任意请求\n6. 在 Headers 中找到 Cookie',
+    'pasteCookieHint': '粘贴 Cookie...',
+    'cookieSavedForDomain': '{domain} Cookie 已保存',
+    'addCookie': '添加 Cookie',
+    'domainLabel': '域名',
+    'domainHint': '例如：youtube.com',
+    'clearAllCookies': '清除所有 Cookie',
+    'clearAllCookiesConfirm': '确定要清除所有保存的 Cookie 吗？',
+    'allCookiesCleared': '所有 Cookie 已清除',
+    'appDescription': '从全球几乎任何网站下载视频的 Android 应用',
+    'importantNote': '重要提示',
+    'bilibiliUaWarning':
+        'Bilibili 视频解析必须使用桌面端 UA（Windows/Mac），使用移动端 UA 会导致解析失败！',
+    'customUaDescription': '设置自定义的 User-Agent 字符串，用于某些需要特定 UA 的网站。留空则使用默认 UA。',
+    'commonUaExamples':
+        '常见 UA 示例：\n• 抖音电脑端：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    'pasteUaHint': '粘贴 User-Agent...',
+    'restoreDefault': '恢复默认',
+    'uaRestoredDefault': '已恢复默认 User-Agent',
   };
 
   String getLocalizedValue(String key) {

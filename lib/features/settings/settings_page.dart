@@ -1092,8 +1092,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _buildSectionHeader(loc.advanced),
         ListTile(
           leading: const Icon(Icons.article_outlined),
-          title: const Text('日志'),
-          subtitle: const Text('按日期和时间复制或导出日志'),
+          title: Text(loc.logs),
+          subtitle: Text(loc.logsSubtitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(
             context,
@@ -1464,15 +1464,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showClearCacheDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除缓存'),
-        content: const Text('确定要清除所有缓存吗？这不会删除已下载的视频。'),
+        title: Text(loc.clearCache),
+        content: Text(loc.clearCacheConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -1480,14 +1481,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               final cleared = await _clearAppCache();
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(cleared ? '缓存已清除' : '缓存清理失败')),
+                SnackBar(
+                  content: Text(
+                    cleared ? loc.cacheCleared : loc.cacheClearFailed,
+                  ),
+                ),
               );
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
-            child: const Text('清除'),
+            child: Text(loc.clearAction),
           ),
         ],
       ),
@@ -1524,6 +1529,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showCookieDialog(BuildContext context, String domain) {
+    final loc = AppLocalizations.of(context)!;
     final controller = TextEditingController();
 
     showDialog(
@@ -1535,12 +1541,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '请从浏览器中复制 Cookie 并粘贴到下方：',
+              loc.cookiePasteHint,
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              '获取方法：\n1. 在浏览器中登录 $domain\n2. 按 F12 打开开发者工具\n3. 切换到 Network 标签\n4. 刷新页面\n5. 点击任意请求\n6. 在 Headers 中找到 Cookie',
+              _locTemplate(loc.cookieHowToGet, {'domain': domain}),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -1548,10 +1554,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const SizedBox(height: 16),
             TextField(
               controller: controller,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Cookie',
-                hintText: '粘贴 Cookie...',
-                border: OutlineInputBorder(),
+                hintText: loc.pasteCookieHint,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 5,
             ),
@@ -1560,7 +1566,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -1569,45 +1575,52 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 await _loadCookies();
                 if (context.mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('$domain Cookie 已保存')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _locTemplate(loc.cookieSavedForDomain, {
+                          'domain': domain,
+                        }),
+                      ),
+                    ),
+                  );
                 }
               }
             },
-            child: const Text('保存'),
+            child: Text(loc.save),
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
   void _showAddCookieDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final domainController = TextEditingController();
     final cookieController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('添加 Cookie'),
+        title: Text(loc.addCookie),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: domainController,
-              decoration: const InputDecoration(
-                labelText: '域名',
-                hintText: '例如：youtube.com',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.domainLabel,
+                hintText: loc.domainHint,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: cookieController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Cookie',
-                hintText: '粘贴 Cookie...',
-                border: OutlineInputBorder(),
+                hintText: loc.pasteCookieHint,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 5,
             ),
@@ -1616,7 +1629,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -1627,29 +1640,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 await _loadCookies();
                 if (context.mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('$domain Cookie 已保存')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        _locTemplate(loc.cookieSavedForDomain, {
+                          'domain': domain,
+                        }),
+                      ),
+                    ),
+                  );
                 }
               }
             },
-            child: const Text('保存'),
+            child: Text(loc.save),
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      domainController.dispose();
+      cookieController.dispose();
+    });
   }
 
   void _showClearCookiesDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除所有 Cookie'),
-        content: const Text('确定要清除所有保存的 Cookie 吗？'),
+        title: Text(loc.clearAllCookies),
+        content: Text(loc.clearAllCookiesConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -1659,14 +1682,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('所有 Cookie 已清除')));
+                ).showSnackBar(SnackBar(content: Text(loc.allCookiesCleared)));
               }
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
-            child: const Text('清除'),
+            child: Text(loc.clearAction),
           ),
         ],
       ),
@@ -1674,10 +1697,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showAboutDialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('关于'),
+        title: Text(loc.about),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1696,7 +1720,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '版本 ${AppConstants.appVersion}',
+                        '${loc.version} ${AppConstants.appVersion}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -1705,7 +1729,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('从全球几乎任何网站下载视频的 Android 应用'),
+            Text(loc.appDescription),
             const SizedBox(height: 16),
             InkWell(
               onTap: () async {
@@ -1740,7 +1764,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
+            child: Text(loc.close),
           ),
         ],
       ),
@@ -1791,12 +1815,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showCustomUADialog(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final controller = TextEditingController(text: _customUA);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('自定义 User-Agent'),
+        title: Text(loc.customUA),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -1826,7 +1851,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '重要提示',
+                            loc.importantNote,
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(
                                   color: Colors.orange.shade700,
@@ -1837,7 +1862,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Bilibili 视频解析必须使用桌面端 UA（Windows/Mac），使用移动端 UA 会导致解析失败！',
+                        loc.bilibiliUaWarning,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.orange.shade800,
                         ),
@@ -1847,15 +1872,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '设置自定义的 User-Agent 字符串，用于某些需要特定 UA 的网站。留空则使用默认 UA。',
+                  loc.customUaDescription,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '常见 UA 示例：\n'
-                  '• 抖音电脑端：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n'
-                  '• Chrome：Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0\n'
-                  '• 手机端：Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+                  loc.commonUaExamples,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -1863,10 +1885,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'User-Agent',
-                    hintText: '粘贴 User-Agent...',
-                    border: OutlineInputBorder(),
+                    hintText: loc.pasteUaHint,
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -1877,7 +1899,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(loc.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -1888,9 +1910,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('已恢复默认 User-Agent')));
+              ).showSnackBar(SnackBar(content: Text(loc.uaRestoredDefault)));
             },
-            child: const Text('恢复默认'),
+            child: Text(loc.restoreDefault),
           ),
           FilledButton(
             onPressed: () {
@@ -1901,13 +1923,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('User-Agent 已保存')));
+              ).showSnackBar(SnackBar(content: Text(loc.uaSaved)));
             },
-            child: const Text('保存'),
+            child: Text(loc.save),
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
   /// 获取应用文档目录
