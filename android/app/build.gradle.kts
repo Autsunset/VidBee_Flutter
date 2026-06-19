@@ -78,3 +78,12 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+// 禁用 Flutter Gradle Plugin 自动加的 ABI versionCode 偏移
+// 让所有架构的 APK 使用相同版本号
+android.applicationVariants.all {
+    outputs.all {
+        // 必须强转才能访问 versionCodeOverride（旧版 AGP API）
+        (this as com.android.build.gradle.internal.api.ApkVariantOutputImpl).versionCodeOverride = flutter.versionCode.toInt()
+    }
+}
