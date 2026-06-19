@@ -2,7 +2,8 @@ name: vidbee_flutter
 description: "A modern, open-source video downloader for Android powered by yt-dlp."
 publish_to: 'none'
 
-version: 1.0.14+15
+# 本地调试占位；正式版本号由 CI 从 git tag 注入（见 .github/workflows/build.yml）
+version: 2026.6.20+2606201
 
 environment:
   sdk: ^3.11.4

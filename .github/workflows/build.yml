@@ -37,14 +37,38 @@ jobs:
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=my-release-key.jks" >> android/key.properties
 
+      - name: Resolve version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          NAME="${GITHUB_REF_NAME#v}"
+          IFS='.' read -r Y M D N <<< "$NAME"
+          N="${N:-1}"
+          NUMBER=$(printf '%02d%02d%02d%d' "$((10#$Y % 100))" "$((10#$M))" "$((10#$D))" "$((10#$N))")
+          echo "BUILD_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$NUMBER" >> "$GITHUB_ENV"
+          echo "Resolved versionName=$NAME versionCode=$NUMBER"
+
       - name: Build release APKs
-        run: flutter build apk --release --split-per-abi
+        shell: bash
+        run: |
+          if [ -n "${BUILD_NAME:-}" ]; then
+            flutter build apk --release --split-per-abi --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+          else
+            flutter build apk --release --split-per-abi
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/*.apk
+
+      - name: Extract release notes from tag commit
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          git log -1 --format=%b | grep -v '^Co-Authored-By:' > release_notes.md || true
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -54,4 +78,5 @@ jobs:
           name: VidBee_Flutter ${{ github.ref_name }}
           draft: false
           prerelease: false
+          body_path: release_notes.md
           generate_release_notes: true
