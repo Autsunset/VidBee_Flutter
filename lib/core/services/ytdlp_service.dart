@@ -191,10 +191,10 @@ class YtDlpService {
       if (!isBilibili) AppLogger.debug('使用自定义 UA');
     }
 
-    // 按域名查找 Cookie 文件
-    final domain = cookieService.extractDomain(effectiveUrl);
-    final cookieFilePath = await cookieService.getCookieFilePathForDomain(
-      domain,
+    // 按站点查找 Cookie 文件（Google 系等多域名站点会自动合并相关域名，
+    // 避免按域名拆分导致登录态不完整，例如 YouTube 的 CookieMismatch）
+    final cookieFilePath = await cookieService.getCookieFileForUrl(
+      effectiveUrl,
     );
     if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
       final cookieFile = File(cookieFilePath);

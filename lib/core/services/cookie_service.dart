@@ -272,8 +272,11 @@ class CookieService {
       final content = await file.readAsString();
       final lines = content.split('\n');
 
-      // 按 domain 分组，收集该 domain 下的所有 cookie 行
-      final Map<String, List<String>> domainCookieLines = {};
+      // 按 domain 分组，保留原始 Netscape 行（含 secure/path/expiry 等完整属性）。
+      // 保留原始行至关重要：Google 的 __Secure-* 前缀 Cookie 规范要求 secure=TRUE
+      // 才会被发送，若像旧实现那样统一重写为 secure=FALSE，会破坏登录态导致
+      // accounts.google.com/CookieMismatch。
+      final Map<String, List<String>> domainRawLines = {};
 
       for (final rawLine in lines) {
         final line = rawLine.trim();
@@ -281,11 +284,11 @@ class CookieService {
         if (line.isEmpty || line.startsWith('#')) continue;
 
         final parts = line.split('\t');
-        // Netscape 格式必须恰好有 7 列
+        // Netscape 格式必须至少有 7 列
         if (parts.length < 7) continue;
 
         var domain = parts[0].trim();
-        // 有些工具导出的 domain 带前导点（.youtube.com），去除
+        // 有些工具导出的 domain 带前导点（.youtube.com），去除用于分组
         if (domain.startsWith('.')) {
           domain = domain.substring(1);
         }
@@ -295,14 +298,13 @@ class CookieService {
         }
 
         final name = parts[5].trim();
-        final value = parts[6].trim();
 
         if (domain.isEmpty || name.isEmpty) continue;
 
-        domainCookieLines.putIfAbsent(domain, () => []).add('$name=$value');
+        domainRawLines.putIfAbsent(domain, () => []).add(line);
       }
 
-      if (domainCookieLines.isEmpty) {
+      if (domainRawLines.isEmpty) {
         AppLogger.debug('未找到有效的 Cookie 条目');
         return false;
       }
@@ -310,21 +312,25 @@ class CookieService {
       // 获取应用文档目录
       final directory = await getApplicationDocumentsDirectory();
 
-      final totalCookieCount = domainCookieLines.values.fold<int>(
+      final totalCookieCount = domainRawLines.values.fold<int>(
         0,
-        (sum, cookies) => sum + cookies.length,
+        (sum, lines) => sum + lines.length,
       );
 
       // 将解析结果按 domain 分别保存
-      for (final entry in domainCookieLines.entries) {
+      for (final entry in domainRawLines.entries) {
         final domain = entry.key;
-        final cookieList = entry.value;
+        final rawLines = entry.value;
 
-        // 1. 保存到 SharedPreferences（用于显示）
-        final cookieStr = cookieList.join('; ');
+        // 1. 保存到 SharedPreferences（name=value 形式，仅用于 UI 显示）
+        final cookieStr = rawLines.map((line) {
+          final p = line.split('\t');
+          return '${p[5]}=${p[6]}';
+        }).join('; ');
         await saveCookie(domain, cookieStr);
 
-        // 2. 按域名保存为独立的 Cookie 文件（供 yt-dlp 使用）
+        // 2. 按域名保存为独立的 Cookie 文件（供 yt-dlp 使用）。
+        //    直接写入原始行，保留 secure/path/expiry 等字段不被改写。
         final domainCookieFile = File('${directory.path}/cookies_$domain.txt');
         final buffer = StringBuffer();
         buffer.writeln('# Netscape HTTP Cookie File');
@@ -332,23 +338,8 @@ class CookieService {
         buffer.writeln('# https://curl.haxx.se/rfc/cookie_spec.html');
         buffer.writeln();
 
-        // 计算过期时间（30天后）
-        final expiry =
-            DateTime.now()
-                .add(const Duration(days: 30))
-                .millisecondsSinceEpoch ~/
-            1000;
-
-        // 写入该域名的所有 cookie
-        for (final cookieStr in cookieList) {
-          final cookieParts = cookieStr.split('=');
-          if (cookieParts.length >= 2) {
-            final name = cookieParts[0].trim();
-            final value = cookieParts.sublist(1).join('=').trim();
-            // Netscape 格式: domain\tflag\tpath\tsecure\texpiry\tname\tvalue
-            buffer.writeln('.$domain\tTRUE\t/\tFALSE\t$expiry\t$name\t$value');
-            buffer.writeln('$domain\tFALSE\t/\tFALSE\t$expiry\t$name\t$value');
-          }
+        for (final line in rawLines) {
+          buffer.writeln(line);
         }
 
         await domainCookieFile.writeAsString(buffer.toString());
@@ -365,13 +356,13 @@ class CookieService {
         'youtube.com',
         'douyin.com',
         'tiktok.com',
-      ].where(domainCookieLines.containsKey).join(', ');
+      ].where(domainRawLines.containsKey).join(', ');
       final focusedSummary = focusedDomains.isEmpty
           ? ''
           : '，包含重点域名: $focusedDomains';
       AppLogger.debug(
         'Netscape Cookie 文件导入成功: '
-        '${domainCookieLines.length} 个域名, $totalCookieCount 条 Cookie$focusedSummary',
+        '${domainRawLines.length} 个域名, $totalCookieCount 条 Cookie$focusedSummary',
       );
       return true;
     } catch (e) {
@@ -413,6 +404,37 @@ class CookieService {
     final normalizedDomain = _normalizeDomain(domain);
     return prefs.getString('$_cookieFilePathPrefix$normalizedDomain') ??
         prefs.getString('$_cookieFilePathPrefix$domain');
+  }
+
+  /// 返回解析某 URL 时应传给 yt-dlp 的 Cookie 文件路径。
+  ///
+  /// 对于需要多域名 Cookie 协同的站点（如 Google 系：YouTube 登录态分散在
+  /// youtube.com / google.com / accounts.google.com），会合并相关域名的 Cookie
+  /// 为一个临时文件，避免因按域名拆分存储导致认证不完整（表现为
+  /// accounts.google.com/CookieMismatch）。其他站点按单域名精确查找。
+  Future<String?> getCookieFileForUrl(String url) async {
+    final domain = cookieLookupDomain(extractDomain(url));
+    final related = _relatedCookieDomains(domain);
+    if (related.length > 1) {
+      final merged = await mergeCookieFilesForDomains(related);
+      if (merged != null) return merged;
+    }
+    return getCookieFilePathForDomain(domain);
+  }
+
+  /// 返回与某域名共享登录态的相关域名列表，用于 Cookie 合并。
+  List<String> _relatedCookieDomains(String domain) {
+    // Google 系站点登录态跨多个 Google 域名共享
+    const googleDomains = [
+      'youtube.com',
+      'google.com',
+      'accounts.google.com',
+      'googleusercontent.com',
+    ];
+    if (googleDomains.contains(domain)) {
+      return googleDomains;
+    }
+    return [domain];
   }
 
   /// 保存指定域名的 Cookie 文件路径
@@ -458,6 +480,11 @@ class CookieService {
     }
     if (normalized == 'b23.tv') {
       return 'bilibili.com';
+    }
+    // YouTube 短链 youtu.be 共享 youtube.com 的 Cookie，需归一到同一域名，
+    // 否则解析短链时查不到导入的 youtube.com Cookie，触发"非机器人"验证。
+    if (normalized == 'youtu.be') {
+      return 'youtube.com';
     }
     return normalized;
   }

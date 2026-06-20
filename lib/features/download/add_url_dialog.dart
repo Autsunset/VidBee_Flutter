@@ -329,8 +329,11 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     final defaultVideoQuality =
         prefs.getString('default_video_quality') ?? '1080p';
     final videoInfo = await ytDlpService.getVideoInfo(url, customUA: customUA);
-    // 解析完成后一次性查询当前域名的 Cookie 状态，供格式列表复用
-    final domain = _cookieService.extractDomain(url);
+    // 标准化为 Cookie 查找域名（如 youtu.be → youtube.com），保证后续
+    // hasCookie 与错误提示分支都按同一域名判断
+    final domain = _cookieService.cookieLookupDomain(
+      _cookieService.extractDomain(url),
+    );
     final domainHasCookie = await _cookieService.hasCookie(domain);
     if (videoInfo != null) {
       AppLogger.info(
@@ -469,12 +472,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       final match = pattern.firstMatch(text);
       if (match != null) {
         var url = match.group(0) ?? '';
-        // 移除末尾的标点符号和空白字符
+        // 仅移除末尾的标点符号和空白字符，必须保留 ?v= 等查询参数，
+        // 否则会把 youtube.com/watch?v=xxx 砍成 watch 导致解析失败
         url = url.replaceAll(RegExp(r'[.,;:!?\s]+$'), '');
-        // 移除查询参数中的多余部分（如果有）
-        if (url.contains('?')) {
-          url = url.split('?')[0];
-        }
         // 将移动端域名转换为桌面端域名
         url = _convertMobileToDesktopUrl(url);
         AppLogger.debug('提取到的 URL: $url');
