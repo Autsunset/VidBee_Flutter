@@ -1,12 +1,14 @@
 // 历史记录页面
 import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/download_task.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
+import '../../core/utils/file_opener.dart';
 import '../../shared/i18n/app_localizations.dart';
 import '../../shared/widgets/task_widgets.dart';
 
@@ -173,27 +175,57 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   }
 
   Future<void> _openSavedFile(DownloadTask task) async {
-    final path = task.downloadPath;
-    if (path == null || path.isEmpty) {
+    final path = await _resolveSavedFilePath(task);
+    if (path == null) {
       _showFileUnavailable();
       return;
     }
 
-    final opened = await launchUrl(
-      Uri.file(path),
-      mode: LaunchMode.externalApplication,
-    );
+    final opened = await FileOpener.openFile(path);
     if (!opened) _showFileUnavailable();
   }
 
   Future<void> _shareSavedFile(DownloadTask task) async {
-    final path = task.downloadPath;
-    if (path == null || path.isEmpty) {
+    final path = await _resolveSavedFilePath(task);
+    if (path == null) {
       _showFileUnavailable();
       return;
     }
 
     await Share.shareXFiles([XFile(path)], text: task.title);
+  }
+
+  /// 解析历史任务对应的真实本地文件路径。
+  ///
+  /// 优先用 [DownloadTask.downloadPath]（完成时通常是完整文件路径）；
+  /// 若只是目录，则拼接 [DownloadTask.savedFileName]。
+  Future<String?> _resolveSavedFilePath(DownloadTask task) async {
+    final rawPath = task.downloadPath;
+    final savedFileName = task.savedFileName;
+
+    final candidates = <String>[];
+    if (rawPath != null && rawPath.isNotEmpty) {
+      candidates.add(rawPath);
+      if (savedFileName != null &&
+          savedFileName.isNotEmpty &&
+          !rawPath.endsWith('/$savedFileName') &&
+          !rawPath.endsWith('\\$savedFileName')) {
+        final separator = rawPath.contains('\\') ? '\\' : '/';
+        final joined = rawPath.endsWith(separator)
+            ? '$rawPath$savedFileName'
+            : '$rawPath$separator$savedFileName';
+        candidates.add(joined);
+      }
+    }
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (await file.exists() &&
+          (await file.stat()).type == FileSystemEntityType.file) {
+        return file.path;
+      }
+    }
+    return null;
   }
 
   void _showFileUnavailable() {

@@ -345,7 +345,7 @@ class YtDlpService {
       if (result.status == OperationStatus.success) {
         // 优先采用插件返回的真实输出路径；若其为空或仍是模板，则在下载目录中
         // 按 VidBee_<标题> 前缀匹配，避免并发下载时按"最新文件"误判归属。
-        final actualPath = _resolveOutputPath(
+        final actualPath = await _resolveOutputPath(
           result.outputPath,
           downloadPath,
           task.title,
@@ -372,17 +372,19 @@ class YtDlpService {
   ///
   /// 优先级：插件返回的真实路径 > 按标题前缀匹配 > null。
   /// 不再使用"目录中最新文件"的启发式，避免多任务并发写入同一目录时张冠李戴。
-  String? _resolveOutputPath(
+  Future<String?> _resolveOutputPath(
     String? pluginOutputPath,
     String downloadPath,
     String? title,
-  ) {
+  ) async {
     // 1. 插件已返回真实存在的文件路径（且不是未展开的模板）
     if (pluginOutputPath != null &&
         pluginOutputPath.isNotEmpty &&
-        !pluginOutputPath.contains('%(') &&
-        File(pluginOutputPath).existsSync()) {
-      return pluginOutputPath;
+        !pluginOutputPath.contains('%(')) {
+      final pluginFile = File(pluginOutputPath);
+      if (await pluginFile.exists()) {
+        return pluginOutputPath;
+      }
     }
 
     // 2. 按 VidBee_<标题> 前缀在下载目录中匹配
@@ -390,30 +392,37 @@ class YtDlpService {
   }
 
   /// 在下载目录中按 VidBee_<标题> 前缀查找已完成文件。
-  String? _findDownloadedFileByTitle(String downloadPath, String? title) {
+  Future<String?> _findDownloadedFileByTitle(
+    String downloadPath,
+    String? title,
+  ) async {
     try {
       final dir = Directory(downloadPath);
-      if (!dir.existsSync()) return null;
+      if (!await dir.exists()) return null;
 
-      final candidates = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) => !f.path.endsWith('.part') && !f.path.endsWith('.ytdl'))
-          .toList();
+      final candidates = <File>[];
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        if (entity.path.endsWith('.part') || entity.path.endsWith('.ytdl')) {
+          continue;
+        }
+        candidates.add(entity);
+      }
       if (candidates.isEmpty) return null;
 
       // yt-dlp 会对文件名中的非法字符做替换，因此仅用标题的"安全前缀"匹配。
       final safePrefix = _safeFileNamePrefix(title);
       if (safePrefix.isNotEmpty) {
-        final matches = candidates.where((f) {
-          final name = f.path.replaceAll('\\', '/').split('/').last;
-          return name.startsWith('VidBee_$safePrefix');
-        }).toList();
+        final matches = <({File file, DateTime modified})>[];
+        for (final file in candidates) {
+          final name = file.path.replaceAll('\\', '/').split('/').last;
+          if (!name.startsWith('VidBee_$safePrefix')) continue;
+          final stat = await file.stat();
+          matches.add((file: file, modified: stat.modified));
+        }
         if (matches.isNotEmpty) {
-          matches.sort(
-            (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
-          );
-          return matches.first.path;
+          matches.sort((a, b) => b.modified.compareTo(a.modified));
+          return matches.first.file.path;
         }
       }
 

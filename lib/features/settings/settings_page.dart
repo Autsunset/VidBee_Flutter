@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../../shared/constants/app_constants.dart';
+import '../../shared/constants/languages.dart';
 import '../../core/providers/service_providers.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/services/cookie_service.dart';
@@ -75,16 +76,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       // 加载语言设置
       final languageCode = prefs.getString('language') ?? 'zh';
       ref.read(languageProvider.notifier).state = languageCode;
-      // 更新语言名称
-      final languages = [
-        {'code': 'zh', 'name': '简体中文'},
-        {'code': 'en', 'name': 'English'},
-        {'code': 'ja', 'name': '日本語'},
-        {'code': 'ko', 'name': '한국어'},
-      ];
-      _language = languages.firstWhere(
-        (l) => l['code'] == languageCode,
-      )['name']!;
+      _language = getLanguageByCode(languageCode)?.nativeName ?? '简体中文';
       // 下载路径从 provider 读取
     });
   }
@@ -1338,12 +1330,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _showLanguageDialog(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
-    final languages = [
-      {'code': 'zh', 'name': '简体中文'},
-      {'code': 'en', 'name': 'English'},
-      {'code': 'ja', 'name': '日本語'},
-      {'code': 'ko', 'name': '한국어'},
-    ];
+    final languages = getLanguageList();
 
     showDialog(
       context: context,
@@ -1360,9 +1347,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     setDialogState(() {
                       ref.read(languageProvider.notifier).state = value;
                       // 更新本地语言名称
-                      _language = languages.firstWhere(
-                        (l) => l['code'] == value,
-                      )['name']!;
+                      _language =
+                          getLanguageByCode(value)?.nativeName ?? value;
                     });
                   }
                 },

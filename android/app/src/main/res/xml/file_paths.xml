@@ -3,4 +3,8 @@
     <cache-path name="cache" path="." />
     <external-cache-path name="external_cache" path="." />
     <files-path name="files" path="." />
+    <!-- 应用外部专属目录（如 Android/data/.../files） -->
+    <external-files-path name="external_files" path="." />
+    <!-- 公共下载目录等外部存储（默认 /storage/emulated/0/Download） -->
+    <external-path name="external" path="." />
 </paths>
