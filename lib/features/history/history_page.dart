@@ -155,6 +155,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       // 内容可能很长（标题/URL/路径/错误），允许 sheet 按内容升高并可滚动，
       // 避免底部 Open/Share/Close 被裁切或被系统手势条挡住。
       isScrollControlled: true,
+      // 只处理 top/left/right；底部手势条由 sheet 内部自行 padding，
+      // 避免 SafeArea 叠在 maxHeight 外把按钮顶出屏幕。
+      useSafeArea: true,
       builder: (context) => TaskDetailsBottomSheet(
         task: task,
         loc: loc,
@@ -327,181 +330,175 @@ class TaskDetailsBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    // 限制最大高度，超出后上方详情可滚、底部操作按钮始终可见
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewPadding.bottom;
+    // useSafeArea:true 已处理顶部；这里再预留 drag handle 与底部手势区，
+    // 保证 ConstrainedBox 的总高度不会把操作按钮顶出可视区域。
+    // 0.75 相对保守：长标题时上方滚动，按钮始终钉在 sheet 底部。
+    final maxHeight = media.size.height * 0.75;
 
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 8, 24, 16 + bottomInset),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    // 注意：padding 必须在 ConstrainedBox 内部。
+    // 若 padding/SafeArea 包在外面，会叠加在 maxHeight 之上导致底部裁切。
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(24, 0, 24, 16 + bottomInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      loc.taskDetails,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    if (task.title != null) ...[
                       Text(
-                        loc.taskDetails,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      if (task.title != null) ...[
-                        Text(
-                          loc.titleField,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(task.title!),
-                        const SizedBox(height: 16),
-                      ],
-                      Text(
-                        loc.urlField,
+                        loc.titleField,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      SelectableText(task.url),
+                      SelectableText(task.title!),
                       const SizedBox(height: 16),
-                      if (task.savedFileName != null &&
-                          task.savedFileName!.isNotEmpty) ...[
-                        Text(
-                          loc.savedFile,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(task.savedFileName!),
-                        if (task.downloadPath != null &&
-                            task.downloadPath!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            task.downloadPath!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                      ],
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  loc.typeField,
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  task.type == DownloadType.video
-                                      ? loc.video
-                                      : loc.audio,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  loc.statusField,
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(_getStatusText(task.status, loc)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (task.error != null && task.error!.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          loc.errorDetails,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(
-                          task.error!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
+                    Text(
+                      loc.urlField,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(task.url),
+                    const SizedBox(height: 16),
+                    if (task.savedFileName != null &&
+                        task.savedFileName!.isNotEmpty) ...[
+                      Text(
+                        loc.savedFile,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(task.savedFileName!),
+                      if (task.downloadPath != null &&
+                          task.downloadPath!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          task.downloadPath!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                loc.typeField,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                task.type == DownloadType.video
+                                    ? loc.video
+                                    : loc.audio,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                loc.statusField,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(_getStatusText(task.status, loc)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (task.error != null && task.error!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        loc.errorDetails,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        task.error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // 操作按钮固定在底部，不随详情滚动被裁切
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (task.status == DownloadStatus.completed) ...[
-                    OutlinedButton.icon(
-                      onPressed: onOpen,
-                      icon: const Icon(Icons.open_in_new),
-                      label: Text(loc.open),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: onShare,
-                      icon: const Icon(Icons.share_outlined),
-                      label: Text(loc.share),
-                    ),
-                  ],
-                  if (task.status == DownloadStatus.error ||
-                      task.status == DownloadStatus.cancelled)
-                    OutlinedButton.icon(
-                      onPressed: onRetry,
-                      icon: const Icon(Icons.refresh),
-                      label: Text(loc.retry),
-                    ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(loc.close),
+            ),
+            const SizedBox(height: 16),
+            // 操作按钮固定在底部，不随详情滚动被裁切
+            OverflowBar(
+              alignment: MainAxisAlignment.end,
+              spacing: 8,
+              overflowSpacing: 8,
+              children: [
+                if (task.status == DownloadStatus.completed) ...[
+                  OutlinedButton.icon(
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text(loc.open),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onShare,
+                    icon: const Icon(Icons.share_outlined),
+                    label: Text(loc.share),
                   ),
                 ],
-              ),
-            ],
-          ),
+                if (task.status == DownloadStatus.error ||
+                    task.status == DownloadStatus.cancelled)
+                  OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(loc.retry),
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(loc.close),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
