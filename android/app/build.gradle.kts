@@ -51,10 +51,9 @@ android {
         release {
             // 使用 release 签名配置
             signingConfig = signingConfigs.getByName("release")
-            // Disable code shrinking and obfuscation to prevent crashes
-            isMinifyEnabled = false
-            isShrinkResources = false
-            // Add ProGuard rules
+            // 开启 R8 压缩/混淆；proguard-rules.pro 已保留 extractor/youtubedl/Flutter 关键路径
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

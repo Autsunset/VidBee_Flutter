@@ -60,8 +60,8 @@ void main() {
     expect(await dao.getAllDownloadHistory(), isEmpty);
   });
 
-  test('新库依据 @TableIndex 创建查询索引 (schemaVersion=2)', () async {
-    expect(db.schemaVersion, 2);
+  test('新库依据 @TableIndex 创建查询索引 (schemaVersion=3)', () async {
+    expect(db.schemaVersion, 3);
     final rows = await db
         .customSelect(
           "SELECT name FROM sqlite_master "

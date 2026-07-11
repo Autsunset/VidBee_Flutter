@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
 import '../../shared/constants/app_constants.dart';
 import '../../shared/constants/languages.dart';
@@ -17,7 +18,9 @@ import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../shared/i18n/app_localizations.dart';
 import 'bilibili_login_page.dart';
+import 'cookie_settings_section.dart';
 import 'logs_page.dart';
+import 'settings_section_header.dart';
 import 'webview_login_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -38,6 +41,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final CookieService _cookieService = CookieService();
   Map<String, String> _cookies = {};
   Map<String, String> _versionInfo = {};
+  String _appVersionLabel = AppConstants.appVersion;
   bool _isUpdating = false;
   bool _isCheckingAppUpdate = false;
   bool _isDownloadingAppUpdate = false;
@@ -61,7 +65,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _themeMode = ref.read(themeModeProvider);
     _initializeDownloadPath();
     _loadVersionInfo();
+    _loadAppVersion();
     _loadSettings();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        // PackageInfo.version 是 CI 注入的正式 versionName；无注入时回退占位常量
+        _appVersionLabel = info.version.isNotEmpty
+            ? info.version
+            : AppConstants.appVersion;
+      });
+    } catch (e) {
+      AppLogger.error('加载应用版本失败', e);
+    }
   }
 
   /// 加载保存的设置
@@ -357,7 +377,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     final release = _latestAppRelease;
     if (release == null) {
-      return '${loc.currentVersion}: ${AppConstants.appVersion}';
+      return '${loc.currentVersion}: $_appVersionLabel';
     }
     if (release.isUpdateAvailable) {
       return '${loc.updateAvailable}: ${release.currentVersion} -> ${release.latestVersion}';
@@ -678,7 +698,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       children: [
         // 下载设置
-        _buildSectionHeader(loc.downloadSettings),
+        SettingsSectionHeader(loc.downloadSettings),
         ListTile(
           leading: const Icon(Icons.folder_outlined),
           title: Text(loc.downloadPath),
@@ -708,7 +728,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 视频格式默认设置
         const Divider(),
-        _buildSectionHeader(loc.defaultSettings),
+        SettingsSectionHeader(loc.defaultSettings),
         ListTile(
           leading: const Icon(Icons.video_library_outlined),
           title: Text(loc.videoQuality),
@@ -726,7 +746,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 外观设置
         const Divider(),
-        _buildSectionHeader(loc.appearance),
+        SettingsSectionHeader(loc.appearance),
         ListTile(
           leading: const Icon(Icons.language_outlined),
           title: Text(loc.language),
@@ -744,344 +764,44 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 权限管理
         const Divider(),
-        _buildSectionHeader(loc.permissionManagement),
+        SettingsSectionHeader(loc.permissionManagement),
         ListTile(
           leading: const Icon(Icons.storage_outlined),
           title: Text(loc.storagePermission),
-          subtitle: Text(
-            loc.storagePermission,
-          ), // loc doesn't have hint, using title maybe? no, just use "loc.storagePermission" as title + something else or write short version
+          subtitle: Text(loc.storagePermission),
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestStoragePermission,
         ),
         ListTile(
           leading: const Icon(Icons.notifications_active_outlined),
           title: Text(loc.notificationSettings),
-          subtitle: Text(
-            loc.notificationSettings,
-          ), // fallback to using the setting name
+          subtitle: Text(loc.notificationSettings),
           trailing: const Icon(Icons.chevron_right),
           onTap: _requestNotificationPermission,
         ),
 
         // Cookie 管理
         const Divider(),
-        _buildSectionHeader(loc.cookieManagement),
-
-        // 📄 从文件导入 Cookie 卡片
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.file_open_outlined, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      loc.importCookieFile,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const Spacer(),
-                    // 帮助链接 - 跳转到 Cookie 使用指南
-                    InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () async {
-                        final uri = Uri.parse(
-                          'https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md',
-                        );
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.help_outline,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              loc.cookieHelp,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  loc.importCookieFileHint,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // 当前文件路径或「未导入」
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _cookieFilePath != null
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        size: 16,
-                        color: _cookieFilePath != null
-                            ? Colors.green
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _cookieFilePath != null
-                              ? '${loc.currentCookieFile}: ${_cookieFilePath!.split('/').last.split('\\').last}'
-                              : loc.noCookieFile,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _importCookieFile,
-                        icon: const Icon(Icons.upload_file),
-                        label: Text(loc.importCookieFile),
-                      ),
-                    ),
-                    if (_cookieFilePath != null) ...[
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: _clearCookieFile,
-                        icon: const Icon(Icons.delete_outline),
-                        label: Text(loc.clearCookieFile),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
+        SettingsSectionHeader(loc.cookieManagement),
+        CookieSettingsSection(
+          loc: loc,
+          cookies: _cookies,
+          cookieFilePath: _cookieFilePath,
+          onImportCookieFile: _importCookieFile,
+          onClearCookieFile: _clearCookieFile,
+          onLoginBilibili: () => _loginBilibili(context),
+          onLoginYouTube: () => _loginYouTube(context),
+          onEditBilibiliCookie: () => _showCookieDialog(context, 'bilibili.com'),
+          onEditYouTubeCookie: () => _showCookieDialog(context, 'youtube.com'),
+          onRemoveBilibiliCookie: () => _removeSingleCookie('bilibili.com'),
+          onRemoveYouTubeCookie: () => _removeSingleCookie('youtube.com'),
+          onAddOtherCookies: () => _showAddCookieDialog(context),
+          onClearAllCookies: () => _showClearCookiesDialog(context),
         ),
-        // 一键登录 Bilibili
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.login, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Bilibili ${loc.login}',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _loginBilibili(context),
-                        icon: const Icon(Icons.open_in_new),
-                        label: Text(loc.login),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _showCookieDialog(context, 'bilibili.com'),
-                        icon: const Icon(Icons.edit),
-                        label: Text(loc.manualCookieInput),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      _cookies.containsKey('bilibili.com')
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      size: 16,
-                      color: _cookies.containsKey('bilibili.com')
-                          ? Colors.green
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _cookies.containsKey('bilibili.com')
-                            ? loc.success
-                            : loc.loginRequired,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _cookies.containsKey('bilibili.com')
-                              ? Colors.green
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    // 单独清理 Bilibili Cookie 的按钮
-                    if (_cookies.containsKey('bilibili.com'))
-                      TextButton.icon(
-                        onPressed: () => _removeSingleCookie('bilibili.com'),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: Text(loc.clear),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.error,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // 一键登录 YouTube
-        Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.login, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'YouTube ${loc.login}',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _loginYouTube(context),
-                        icon: const Icon(Icons.open_in_new),
-                        label: Text(loc.login),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _showCookieDialog(context, 'youtube.com'),
-                        icon: const Icon(Icons.edit),
-                        label: Text(loc.manualCookieInput),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      _cookies.containsKey('youtube.com')
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      size: 16,
-                      color: _cookies.containsKey('youtube.com')
-                          ? Colors.green
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _cookies.containsKey('youtube.com')
-                            ? loc.success
-                            : loc.loginRequired,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _cookies.containsKey('youtube.com')
-                              ? Colors.green
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    // 单独清理 YouTube Cookie 的按钮
-                    if (_cookies.containsKey('youtube.com'))
-                      TextButton.icon(
-                        onPressed: () => _removeSingleCookie('youtube.com'),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: Text(loc.clear),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.error,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.add_circle_outline),
-          title: Text(loc.addOtherCookies),
-          subtitle: Text(loc.manualCookieInput),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showAddCookieDialog(context),
-        ),
-        if (_cookies.isNotEmpty)
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: Text(loc.clearAll),
-            subtitle: Text('${_cookies.length} Cookies'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showClearCookiesDialog(context),
-          ),
 
         // 高级
         const Divider(),
-        _buildSectionHeader(loc.advanced),
+        SettingsSectionHeader(loc.advanced),
         ListTile(
           leading: const Icon(Icons.article_outlined),
           title: Text(loc.logs),
@@ -1147,7 +867,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         // 关于
         const Divider(),
-        _buildSectionHeader(loc.about),
+        SettingsSectionHeader(loc.about),
         ListTile(
           leading: const Icon(Icons.info_outlined),
           title: Text('${loc.about} VidBee_Flutter'),
@@ -1155,18 +875,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           onTap: () => _showAboutDialog(context),
         ),
       ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
     );
   }
 
@@ -1706,7 +1414,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${loc.version} ${AppConstants.appVersion}',
+                        '${loc.version} $_appVersionLabel',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],

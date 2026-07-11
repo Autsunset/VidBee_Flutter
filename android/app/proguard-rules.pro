@@ -5,24 +5,24 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Preserve line numbers for crash stacks (helps diagnose minify issues)
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
 # Keep extractor plugin classes
 -keep class com.extractor.** { *; }
 -keep class com.hiennv.flutter.extractor.** { *; }
+-keep class com.ashishpipaliya.extractor.** { *; }
+
+# Keep youtubedl-android (JNI + reflection heavy)
+-keep class com.yausername.** { *; }
+-keep class com.yausername.youtubedl_android.** { *; }
+-dontwarn com.yausername.**
+
+# Keep Flutter embedding / plugins
+-keep class io.flutter.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-dontwarn io.flutter.embedding.**
 
 # Keep WebView
 -keep class * extends android.webkit.WebChromeClient { *; }
@@ -31,4 +31,19 @@
 # Keep Kotlin
 -keep class kotlin.** { *; }
 -keep class kotlinx.** { *; }
--keep class android.** { *; }
+-dontwarn kotlin.**
+-dontwarn kotlinx.**
+
+# Keep FileProvider paths / method channels used by MainActivity
+-keep class com.vidbee.vidbee_flutter.** { *; }
+
+# Keep native methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Reflection / JSON attributes
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses

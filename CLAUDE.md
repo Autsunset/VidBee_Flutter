@@ -47,7 +47,7 @@ Cookies are stored **per domain**, not globally. `CookieService.importNetscapeCo
 
 ### Database (`lib/core/database/`)
 
-Drift DB (`vidbee.db`) with four tables: `DownloadHistory`, `Subscriptions`, `SubscriptionItems`, `Settings`. `schemaVersion = 1` with **no migrations defined** — bump the version and add an `onUpgrade` strategy if you change a table. The `Subscriptions`/`SubscriptionItems` tables and `subscriptionDaoProvider` exist in the schema but are **not yet wired into any UI feature** (forward-looking scaffolding).
+Drift DB (`vidbee.db`) with table `DownloadHistory`. `schemaVersion = 3` with additive `onUpgrade` (indexes on `downloaded_at`/`playlist_id` at v2; v3 removes unused `subscription_id` from the Drift schema only — old DBs may still have the orphan column, which is harmless). Bump the version and extend `onUpgrade` if you change a table.
 
 ### Settings persistence is split (intentional, but watch for it)
 
@@ -60,10 +60,10 @@ i18n is **hand-maintained, not generated** from ARB files. `AppLocalizations` ex
 ## Platform / build notes
 
 - **Android only** in practice (a `windows/` folder exists but the app targets Android). `minSdk = 24` is required by the `extractor` plugin.
-- Release builds intentionally **disable minify and resource shrinking** (`isMinifyEnabled = false`) to prevent runtime crashes — don't re-enable without testing.
+- Release builds enable R8 minify + resource shrinking (`isMinifyEnabled = true`); keep `android/app/proguard-rules.pro` updated for extractor / youtubedl-android / Flutter keep rules. If a release-only crash appears, check R8 first.
 - Signing reads `android/key.properties`; CI (`.github/workflows/build.yml`, runs on `windows-latest`) decodes the keystore from secrets. Pushing a `v*.*.*` tag builds a signed APK and publishes a GitHub release.
 - The app requests `MANAGE_EXTERNAL_STORAGE` and defaults downloads to `/storage/emulated/0/Download` so other apps can see them.
 
 ## Lint
 
-`flutter_lints` is enabled, but `prefer_const_constructors` and `prefer_const_literals_to_create_immutables` are intentionally ignored in `analysis_options.yaml` — don't add `const` purely to satisfy those.
+`flutter_lints` is enabled, including `prefer_const_constructors` / `prefer_const_literals_to_create_immutables`.

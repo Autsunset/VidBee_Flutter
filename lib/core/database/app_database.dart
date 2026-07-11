@@ -33,7 +33,6 @@ class DownloadHistory extends Table {
   IntColumn get viewCount => integer().nullable()();
   TextColumn get tags => text().nullable()();
   TextColumn get origin => text().nullable()();
-  TextColumn get subscriptionId => text().nullable()();
   TextColumn get selectedFormat => text().nullable()();
   TextColumn get playlistId => text().nullable()();
   TextColumn get playlistTitle => text().nullable()();
@@ -52,7 +51,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,6 +70,13 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS idx_download_history_playlist_id '
           'ON download_history (playlist_id)',
         );
+      }
+      // v3：从 Drift schema 移除未接线的 subscription_id。
+      // 不在这里 DROP COLUMN——Android minSdk 24 自带的 SQLite 过旧，
+      // 不支持 DROP COLUMN；旧库保留该孤儿列无害（Drift 读写均不引用它），
+      // 新库由 createAll() 直接按新 schema 建表（不含该列）。
+      if (from < 3) {
+        // no-op migration marker for schemaVersion bump
       }
     },
   );

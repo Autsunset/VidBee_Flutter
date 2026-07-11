@@ -1,6 +1,3 @@
 include: package:flutter_lints/flutter.yaml
 
-analyzer:
-  errors:
-    prefer_const_constructors: ignore
-    prefer_const_literals_to_create_immutables: ignore
+# prefer_const_* re-enabled (was intentionally ignored)

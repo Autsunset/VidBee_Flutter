@@ -25,7 +25,7 @@ class YtDlpService {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   static const String _prefLastYtDlpUpdateCheck = 'last_ytdlp_update_check';
-  static const String _bundledYtDlpVersion = '2026.06.09';
+  static const String _bundledYtDlpVersion = '2026.07.04';
   static const Duration _ytDlpUpdateCheckInterval = Duration(hours: 24);
 
   /// yt-dlp 自动更新的最大重试次数与每次重试间隔。

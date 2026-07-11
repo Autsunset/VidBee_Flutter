@@ -224,17 +224,6 @@ class $DownloadHistoryTable extends DownloadHistory
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _subscriptionIdMeta = const VerificationMeta(
-    'subscriptionId',
-  );
-  @override
-  late final GeneratedColumn<String> subscriptionId = GeneratedColumn<String>(
-    'subscription_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _selectedFormatMeta = const VerificationMeta(
     'selectedFormat',
   );
@@ -313,7 +302,6 @@ class $DownloadHistoryTable extends DownloadHistory
     viewCount,
     tags,
     origin,
-    subscriptionId,
     selectedFormat,
     playlistId,
     playlistTitle,
@@ -485,15 +473,6 @@ class $DownloadHistoryTable extends DownloadHistory
         origin.isAcceptableOrUnknown(data['origin']!, _originMeta),
       );
     }
-    if (data.containsKey('subscription_id')) {
-      context.handle(
-        _subscriptionIdMeta,
-        subscriptionId.isAcceptableOrUnknown(
-          data['subscription_id']!,
-          _subscriptionIdMeta,
-        ),
-      );
-    }
     if (data.containsKey('selected_format')) {
       context.handle(
         _selectedFormatMeta,
@@ -629,10 +608,6 @@ class $DownloadHistoryTable extends DownloadHistory
         DriftSqlType.string,
         data['${effectivePrefix}origin'],
       ),
-      subscriptionId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}subscription_id'],
-      ),
       selectedFormat: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}selected_format'],
@@ -685,7 +660,6 @@ class DownloadHistoryData extends DataClass
   final int? viewCount;
   final String? tags;
   final String? origin;
-  final String? subscriptionId;
   final String? selectedFormat;
   final String? playlistId;
   final String? playlistTitle;
@@ -713,7 +687,6 @@ class DownloadHistoryData extends DataClass
     this.viewCount,
     this.tags,
     this.origin,
-    this.subscriptionId,
     this.selectedFormat,
     this.playlistId,
     this.playlistTitle,
@@ -773,9 +746,6 @@ class DownloadHistoryData extends DataClass
     }
     if (!nullToAbsent || origin != null) {
       map['origin'] = Variable<String>(origin);
-    }
-    if (!nullToAbsent || subscriptionId != null) {
-      map['subscription_id'] = Variable<String>(subscriptionId);
     }
     if (!nullToAbsent || selectedFormat != null) {
       map['selected_format'] = Variable<String>(selectedFormat);
@@ -846,9 +816,6 @@ class DownloadHistoryData extends DataClass
       origin: origin == null && nullToAbsent
           ? const Value.absent()
           : Value(origin),
-      subscriptionId: subscriptionId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(subscriptionId),
       selectedFormat: selectedFormat == null && nullToAbsent
           ? const Value.absent()
           : Value(selectedFormat),
@@ -894,7 +861,6 @@ class DownloadHistoryData extends DataClass
       viewCount: serializer.fromJson<int?>(json['viewCount']),
       tags: serializer.fromJson<String?>(json['tags']),
       origin: serializer.fromJson<String?>(json['origin']),
-      subscriptionId: serializer.fromJson<String?>(json['subscriptionId']),
       selectedFormat: serializer.fromJson<String?>(json['selectedFormat']),
       playlistId: serializer.fromJson<String?>(json['playlistId']),
       playlistTitle: serializer.fromJson<String?>(json['playlistTitle']),
@@ -927,7 +893,6 @@ class DownloadHistoryData extends DataClass
       'viewCount': serializer.toJson<int?>(viewCount),
       'tags': serializer.toJson<String?>(tags),
       'origin': serializer.toJson<String?>(origin),
-      'subscriptionId': serializer.toJson<String?>(subscriptionId),
       'selectedFormat': serializer.toJson<String?>(selectedFormat),
       'playlistId': serializer.toJson<String?>(playlistId),
       'playlistTitle': serializer.toJson<String?>(playlistTitle),
@@ -958,7 +923,6 @@ class DownloadHistoryData extends DataClass
     Value<int?> viewCount = const Value.absent(),
     Value<String?> tags = const Value.absent(),
     Value<String?> origin = const Value.absent(),
-    Value<String?> subscriptionId = const Value.absent(),
     Value<String?> selectedFormat = const Value.absent(),
     Value<String?> playlistId = const Value.absent(),
     Value<String?> playlistTitle = const Value.absent(),
@@ -988,9 +952,6 @@ class DownloadHistoryData extends DataClass
     viewCount: viewCount.present ? viewCount.value : this.viewCount,
     tags: tags.present ? tags.value : this.tags,
     origin: origin.present ? origin.value : this.origin,
-    subscriptionId: subscriptionId.present
-        ? subscriptionId.value
-        : this.subscriptionId,
     selectedFormat: selectedFormat.present
         ? selectedFormat.value
         : this.selectedFormat,
@@ -1038,9 +999,6 @@ class DownloadHistoryData extends DataClass
       viewCount: data.viewCount.present ? data.viewCount.value : this.viewCount,
       tags: data.tags.present ? data.tags.value : this.tags,
       origin: data.origin.present ? data.origin.value : this.origin,
-      subscriptionId: data.subscriptionId.present
-          ? data.subscriptionId.value
-          : this.subscriptionId,
       selectedFormat: data.selectedFormat.present
           ? data.selectedFormat.value
           : this.selectedFormat,
@@ -1083,7 +1041,6 @@ class DownloadHistoryData extends DataClass
           ..write('viewCount: $viewCount, ')
           ..write('tags: $tags, ')
           ..write('origin: $origin, ')
-          ..write('subscriptionId: $subscriptionId, ')
           ..write('selectedFormat: $selectedFormat, ')
           ..write('playlistId: $playlistId, ')
           ..write('playlistTitle: $playlistTitle, ')
@@ -1116,7 +1073,6 @@ class DownloadHistoryData extends DataClass
     viewCount,
     tags,
     origin,
-    subscriptionId,
     selectedFormat,
     playlistId,
     playlistTitle,
@@ -1148,7 +1104,6 @@ class DownloadHistoryData extends DataClass
           other.viewCount == this.viewCount &&
           other.tags == this.tags &&
           other.origin == this.origin &&
-          other.subscriptionId == this.subscriptionId &&
           other.selectedFormat == this.selectedFormat &&
           other.playlistId == this.playlistId &&
           other.playlistTitle == this.playlistTitle &&
@@ -1178,7 +1133,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
   final Value<int?> viewCount;
   final Value<String?> tags;
   final Value<String?> origin;
-  final Value<String?> subscriptionId;
   final Value<String?> selectedFormat;
   final Value<String?> playlistId;
   final Value<String?> playlistTitle;
@@ -1207,7 +1161,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
     this.viewCount = const Value.absent(),
     this.tags = const Value.absent(),
     this.origin = const Value.absent(),
-    this.subscriptionId = const Value.absent(),
     this.selectedFormat = const Value.absent(),
     this.playlistId = const Value.absent(),
     this.playlistTitle = const Value.absent(),
@@ -1237,7 +1190,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
     this.viewCount = const Value.absent(),
     this.tags = const Value.absent(),
     this.origin = const Value.absent(),
-    this.subscriptionId = const Value.absent(),
     this.selectedFormat = const Value.absent(),
     this.playlistId = const Value.absent(),
     this.playlistTitle = const Value.absent(),
@@ -1272,7 +1224,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
     Expression<int>? viewCount,
     Expression<String>? tags,
     Expression<String>? origin,
-    Expression<String>? subscriptionId,
     Expression<String>? selectedFormat,
     Expression<String>? playlistId,
     Expression<String>? playlistTitle,
@@ -1302,7 +1253,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
       if (viewCount != null) 'view_count': viewCount,
       if (tags != null) 'tags': tags,
       if (origin != null) 'origin': origin,
-      if (subscriptionId != null) 'subscription_id': subscriptionId,
       if (selectedFormat != null) 'selected_format': selectedFormat,
       if (playlistId != null) 'playlist_id': playlistId,
       if (playlistTitle != null) 'playlist_title': playlistTitle,
@@ -1334,7 +1284,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
     Value<int?>? viewCount,
     Value<String?>? tags,
     Value<String?>? origin,
-    Value<String?>? subscriptionId,
     Value<String?>? selectedFormat,
     Value<String?>? playlistId,
     Value<String?>? playlistTitle,
@@ -1364,7 +1313,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
       viewCount: viewCount ?? this.viewCount,
       tags: tags ?? this.tags,
       origin: origin ?? this.origin,
-      subscriptionId: subscriptionId ?? this.subscriptionId,
       selectedFormat: selectedFormat ?? this.selectedFormat,
       playlistId: playlistId ?? this.playlistId,
       playlistTitle: playlistTitle ?? this.playlistTitle,
@@ -1440,9 +1388,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
     if (origin.present) {
       map['origin'] = Variable<String>(origin.value);
     }
-    if (subscriptionId.present) {
-      map['subscription_id'] = Variable<String>(subscriptionId.value);
-    }
     if (selectedFormat.present) {
       map['selected_format'] = Variable<String>(selectedFormat.value);
     }
@@ -1488,7 +1433,6 @@ class DownloadHistoryCompanion extends UpdateCompanion<DownloadHistoryData> {
           ..write('viewCount: $viewCount, ')
           ..write('tags: $tags, ')
           ..write('origin: $origin, ')
-          ..write('subscriptionId: $subscriptionId, ')
           ..write('selectedFormat: $selectedFormat, ')
           ..write('playlistId: $playlistId, ')
           ..write('playlistTitle: $playlistTitle, ')
@@ -1548,7 +1492,6 @@ typedef $$DownloadHistoryTableCreateCompanionBuilder =
       Value<int?> viewCount,
       Value<String?> tags,
       Value<String?> origin,
-      Value<String?> subscriptionId,
       Value<String?> selectedFormat,
       Value<String?> playlistId,
       Value<String?> playlistTitle,
@@ -1579,7 +1522,6 @@ typedef $$DownloadHistoryTableUpdateCompanionBuilder =
       Value<int?> viewCount,
       Value<String?> tags,
       Value<String?> origin,
-      Value<String?> subscriptionId,
       Value<String?> selectedFormat,
       Value<String?> playlistId,
       Value<String?> playlistTitle,
@@ -1699,11 +1641,6 @@ class $$DownloadHistoryTableFilterComposer
 
   ColumnFilters<String> get origin => $composableBuilder(
     column: $table.origin,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get subscriptionId => $composableBuilder(
-    column: $table.subscriptionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1847,11 +1784,6 @@ class $$DownloadHistoryTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get subscriptionId => $composableBuilder(
-    column: $table.subscriptionId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get selectedFormat => $composableBuilder(
     column: $table.selectedFormat,
     builder: (column) => ColumnOrderings(column),
@@ -1962,11 +1894,6 @@ class $$DownloadHistoryTableAnnotationComposer
   GeneratedColumn<String> get origin =>
       $composableBuilder(column: $table.origin, builder: (column) => column);
 
-  GeneratedColumn<String> get subscriptionId => $composableBuilder(
-    column: $table.subscriptionId,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<String> get selectedFormat => $composableBuilder(
     column: $table.selectedFormat,
     builder: (column) => column,
@@ -2051,7 +1978,6 @@ class $$DownloadHistoryTableTableManager
                 Value<int?> viewCount = const Value.absent(),
                 Value<String?> tags = const Value.absent(),
                 Value<String?> origin = const Value.absent(),
-                Value<String?> subscriptionId = const Value.absent(),
                 Value<String?> selectedFormat = const Value.absent(),
                 Value<String?> playlistId = const Value.absent(),
                 Value<String?> playlistTitle = const Value.absent(),
@@ -2080,7 +2006,6 @@ class $$DownloadHistoryTableTableManager
                 viewCount: viewCount,
                 tags: tags,
                 origin: origin,
-                subscriptionId: subscriptionId,
                 selectedFormat: selectedFormat,
                 playlistId: playlistId,
                 playlistTitle: playlistTitle,
@@ -2111,7 +2036,6 @@ class $$DownloadHistoryTableTableManager
                 Value<int?> viewCount = const Value.absent(),
                 Value<String?> tags = const Value.absent(),
                 Value<String?> origin = const Value.absent(),
-                Value<String?> subscriptionId = const Value.absent(),
                 Value<String?> selectedFormat = const Value.absent(),
                 Value<String?> playlistId = const Value.absent(),
                 Value<String?> playlistTitle = const Value.absent(),
@@ -2140,7 +2064,6 @@ class $$DownloadHistoryTableTableManager
                 viewCount: viewCount,
                 tags: tags,
                 origin: origin,
-                subscriptionId: subscriptionId,
                 selectedFormat: selectedFormat,
                 playlistId: playlistId,
                 playlistTitle: playlistTitle,
