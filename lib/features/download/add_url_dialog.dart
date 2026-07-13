@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/services/cookie_service.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
+import '../../core/utils/url_utils.dart';
 import '../../shared/i18n/app_localizations.dart';
 
 class AddUrlDialog extends ConsumerStatefulWidget {
@@ -23,6 +24,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
   final CookieService _cookieService = CookieService();
   // 解析完成后缓存当前域名是否已有 Cookie，避免在格式列表中对每个 chip 反复异步查询
   bool _hasCookieForDomain = false;
+  // 解析成功时锁定的 URL；下载时优先使用，避免用户清空输入框后变成 https://
+  String? _parsedUrl;
 
   @override
   void dispose() {
@@ -189,7 +192,11 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       return Text(AppLocalizations.of(context)!.noAvailableFormat);
     }
 
-    final url = _normalizeUrl(_urlController.text.trim());
+    final url = resolveDownloadUrl(
+      parsedUrl: _parsedUrl,
+      webpageUrl: videoInfo.webpageUrl,
+      inputText: _urlController.text,
+    );
     final domain = _cookieService.extractDomain(url);
 
     return Column(
@@ -315,12 +322,28 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     if (url.isEmpty) return;
 
     // 自动补全 URL
-    url = _normalizeUrl(url);
+    url = normalizeVideoUrl(url);
+    if (!isValidHttpUrl(url)) {
+      AppLogger.error('解析前 URL 无效: raw=${_urlController.text}, normalized=$url');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.parseFailedDefault),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     AppLogger.info('用户开始解析 URL: $url');
 
     ref.read(isLoadingVideoInfoProvider.notifier).state = true;
     ref.read(currentVideoInfoProvider.notifier).state = null;
     ref.read(selectedFormatProvider.notifier).state = null;
+    setState(() {
+      _parsedUrl = null;
+      _hasCookieForDomain = false;
+    });
 
     final ytDlpService = ref.read(ytDlpServiceProvider);
     // 获取自定义UA
@@ -346,6 +369,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       ref.read(isLoadingVideoInfoProvider.notifier).state = false;
       setState(() {
         _hasCookieForDomain = domainHasCookie;
+        // 解析成功时锁定 URL；即使之后输入框被清空，下载仍用此 URL
+        _parsedUrl = videoInfo != null ? url : null;
       });
       if (videoInfo != null) {
         ref.read(currentVideoInfoProvider.notifier).state = videoInfo;
@@ -414,90 +439,6 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     return sortedFormats.last;
   }
 
-  /// 自动补全 URL
-  String _normalizeUrl(String input) {
-    // 先尝试从文本中提取 URL
-    final extractedUrl = _extractUrl(input);
-    if (extractedUrl != null) {
-      input = extractedUrl;
-    }
-
-    // 如果已经是完整 URL，直接返回
-    if (input.startsWith('http://') || input.startsWith('https://')) {
-      return input;
-    }
-
-    // Bilibili BV 号
-    if (input.startsWith('BV') && input.length >= 10) {
-      return 'https://www.bilibili.com/video/$input';
-    }
-
-    // Bilibili AV 号
-    if (input.startsWith('av') || input.startsWith('AV')) {
-      return 'https://www.bilibili.com/video/${input.toLowerCase()}';
-    }
-
-    // YouTube 视频 ID (11位字母数字)
-    if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(input)) {
-      return 'https://www.youtube.com/watch?v=$input';
-    }
-
-    // YouTube Shorts ID
-    if (input.startsWith('shorts/')) {
-      return 'https://www.youtube.com/$input';
-    }
-
-    // 默认当作 URL（添加 https://）
-    return 'https://$input';
-  }
-
-  /// 从文本中提取 URL
-  String? _extractUrl(String text) {
-    // 常见视频网站 URL 正则表达式
-    final urlPatterns = [
-      // Bilibili (支持 www 和移动端 m 域名)
-      RegExp(r'https?://(?:www\.|m\.)?bilibili\.com/video/[^\s]+'),
-      // YouTube
-      RegExp(r'https?://(?:www\.)?youtube\.com/watch\?v=[^\s]+'),
-      RegExp(r'https?://(?:www\.)?youtube\.com/shorts/[^\s]+'),
-      RegExp(r'https?://youtu\.be/[^\s]+'),
-      // 抖音
-      RegExp(r'https?://(?:www\.)?douyin\.com/[^\s]+'),
-      RegExp(r'https?://v\.douyin\.com/[^\s]+'),
-      // 通用 URL
-      RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+'),
-    ];
-
-    for (final pattern in urlPatterns) {
-      final match = pattern.firstMatch(text);
-      if (match != null) {
-        var url = match.group(0) ?? '';
-        // 仅移除末尾的标点符号和空白字符，必须保留 ?v= 等查询参数，
-        // 否则会把 youtube.com/watch?v=xxx 砍成 watch 导致解析失败
-        url = url.replaceAll(RegExp(r'[.,;:!?\s]+$'), '');
-        // 将移动端域名转换为桌面端域名
-        url = _convertMobileToDesktopUrl(url);
-        AppLogger.debug('提取到的 URL: $url');
-        return url;
-      }
-    }
-
-    return null;
-  }
-
-  /// 将移动端 URL 转换为桌面端 URL
-  String _convertMobileToDesktopUrl(String url) {
-    // Bilibili 移动端域名转换
-    if (url.contains('m.bilibili.com')) {
-      return url.replaceFirst('m.bilibili.com', 'www.bilibili.com');
-    }
-    // YouTube 移动端域名转换
-    if (url.contains('m.youtube.com')) {
-      return url.replaceFirst('m.youtube.com', 'www.youtube.com');
-    }
-    return url;
-  }
-
   Future<void> _startDownload(
     VideoInfo videoInfo,
     VideoFormat? selectedFormat,
@@ -519,11 +460,31 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       return;
     }
 
+    // 优先使用解析时锁定的 URL，避免输入框被清空后变成 https://
+    final url = resolveDownloadUrl(
+      parsedUrl: _parsedUrl,
+      webpageUrl: videoInfo.webpageUrl,
+      inputText: _urlController.text,
+    );
+    if (!isValidHttpUrl(url)) {
+      AppLogger.error(
+        '下载前 URL 无效: parsed=$_parsedUrl, '
+        'webpage=${videoInfo.webpageUrl}, input=${_urlController.text}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.parseFailedDefault),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+    AppLogger.debug('提交下载任务: $url');
+
     final downloadService = ref.read(downloadServiceProvider);
     final downloadPath = ref.read(downloadPathProvider);
-
-    // 使用补全后的 URL
-    final url = _normalizeUrl(_urlController.text.trim());
 
     await downloadService.addTask(
       url: url,
@@ -550,6 +511,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     ref.read(isLoadingVideoInfoProvider.notifier).state = false;
     ref.read(currentVideoInfoProvider.notifier).state = null;
     ref.read(selectedFormatProvider.notifier).state = null;
+    _parsedUrl = null;
     Navigator.of(context).pop();
   }
 }
