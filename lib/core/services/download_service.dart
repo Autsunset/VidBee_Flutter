@@ -61,16 +61,27 @@ class DownloadService {
   final Set<String> _completionHandledTaskIds = {};
 
   /// 初始化下载服务
+  ///
+  /// 注意：这里**不**调用 `_ytDlpService.initialize()`。
+  /// 该调用会触发 youtubedl-android 的 native 库初始化——解压随包的
+  /// ffmpeg / aria2c / python 二进制（合计约 50MB）到设备存储。
+  /// 在部分机型上这一步会发生 native 层崩溃（SIGSEGV，无法被 Dart
+  /// 的 try/catch 拦截），表现为「打开即闪退」。
+  /// 因此把 native 初始化推迟到真正需要时（首次解析 URL / 下载），
+  /// 由 `YtDlpService.getVideoInfo`/`startDownload`/`getVersionInfo`
+  /// 内部的懒加载触发，保证应用启动流程不再触碰 native 库。
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     await _loadPreferences();
-    await _ytDlpService.initialize();
     await _historyService.initialize();
     await _restoreIncompleteTasks();
     _setupYtDlpEventListeners();
     _isInitialized = true;
-    _processQueue();
+    // 不在启动时调用 _processQueue()：它会启动恢复出的 pending 任务，
+    // 进而触发 native 初始化。若存在遗留 pending 任务且 native 初始化在该机型
+    // 上崩溃，会形成「每次启动都恢复→启动任务→native 崩溃」的死循环。
+    // pending 任务保留在队列中（UI 可见、可取消），等用户主动新增下载时再处理。
   }
 
   /// 从 SharedPreferences 读取下载相关设置
