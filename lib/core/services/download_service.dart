@@ -10,8 +10,9 @@ import '../models/video_info.dart';
 import 'ytdlp_service.dart';
 import 'history_service.dart';
 import 'notification_service.dart';
-import '../utils/event_bus.dart';
 import '../utils/app_logger.dart';
+import '../utils/download_filename.dart';
+import '../utils/event_bus.dart';
 
 /// 下载服务类
 class DownloadService {
@@ -193,13 +194,18 @@ class DownloadService {
 
   /// 保存到历史记录
   Future<void> _saveToHistory(DownloadTask task) async {
-    // 如果 startDownload 已返回真实文件路径，则补充到历史记录中
+    // 如果 startDownload 已返回真实文件路径，则补充到历史记录中。
+    // 绝不把 yt-dlp 未展开的模板路径（VidBee_%(title)s.%(ext)s）写入历史。
     final resolvedPath = _resolvedFileNames.remove(task.id);
-    final enrichedTask = resolvedPath != null
+    final usablePath =
+        resolvedPath != null && !isYtDlpTemplatePath(resolvedPath)
+        ? resolvedPath
+        : null;
+    final enrichedTask = usablePath != null
         ? task.copyWith(
             savedFileName:
-                task.savedFileName ?? _fileNameFromPath(resolvedPath),
-            downloadPath: resolvedPath,
+                task.savedFileName ?? fileNameFromPath(usablePath),
+            downloadPath: usablePath,
           )
         : task;
     await _historyService.addToHistory(enrichedTask);
@@ -239,10 +245,24 @@ class DownloadService {
           _notifyTaskUpdate(failedTask);
           await _onTaskComplete(failedTask);
         }
+      } else if (isYtDlpTemplatePath(result)) {
+        // 防御：底层不应再返回模板路径；若仍返回则视为失败，避免污染历史。
+        AppLogger.error('下载返回未展开的模板路径，忽略: $result');
+        final currentTask = _activeTasks[task.id];
+        if (currentTask != null &&
+            currentTask.status == DownloadStatus.downloading) {
+          final failedTask = currentTask.copyWith(
+            status: DownloadStatus.error,
+            error: '下载完成但未能解析真实文件名',
+          );
+          _activeTasks[task.id] = failedTask;
+          _notifyTaskUpdate(failedTask);
+          await _onTaskComplete(failedTask);
+        }
       } else {
         // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
         // 因此既写入活动任务，也尝试更新已落库的历史记录。
-        final savedFileName = _fileNameFromPath(result);
+        final savedFileName = fileNameFromPath(result);
         final activeTask = _activeTasks[task.id];
         if (activeTask != null) {
           _activeTasks[task.id] = activeTask.copyWith(
@@ -287,13 +307,6 @@ class DownloadService {
       if (!_completionHandledTaskIds.contains(taskId)) return;
       await Future<void>.delayed(_historyUpdateRetryDelay);
     }
-  }
-
-  /// 从完整路径中提取文件名
-  String _fileNameFromPath(String path) {
-    final normalized = path.replaceAll('\\', '/');
-    final segments = normalized.split('/');
-    return segments.isEmpty ? path : segments.last;
   }
 
   /// 淘汰最早写入的去重 ID（LinkedHashSet 保留插入顺序）。

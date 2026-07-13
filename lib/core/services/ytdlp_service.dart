@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/video_info.dart' as vidbee;
 import '../models/download_task.dart' as vidbee;
 import '../utils/app_logger.dart';
+import '../utils/download_filename.dart';
 import '../utils/event_bus.dart';
 import '../utils/media_scanner.dart';
 import '../utils/permission_helper.dart';
@@ -344,20 +345,26 @@ class YtDlpService {
 
       if (result.status == OperationStatus.success) {
         // 优先采用插件返回的真实输出路径；若其为空或仍是模板，则在下载目录中
-        // 按 VidBee_<标题> 前缀匹配，避免并发下载时按"最新文件"误判归属。
+        // 按 VidBee_<标题> 安全化匹配，避免并发下载时按"最新文件"误判归属。
+        // 切勿把含 %(title)s 的模板路径写回任务/历史。
         final actualPath = await _resolveOutputPath(
           result.outputPath,
           downloadPath,
           task.title,
         );
-        AppLogger.debug('下载成功: ${actualPath ?? result.outputPath}');
+        if (actualPath == null) {
+          AppLogger.error(
+            '下载成功但未能解析真实文件路径: '
+            'pluginOutput=${result.outputPath}, title=${task.title}',
+          );
+          return null;
+        }
+        AppLogger.debug('下载成功: $actualPath');
 
         // 通知系统媒体库扫描新文件
-        if (actualPath != null) {
-          await MediaScanner.scanFile(actualPath);
-        }
+        await MediaScanner.scanFile(actualPath);
 
-        return actualPath ?? result.outputPath;
+        return actualPath;
       } else {
         AppLogger.error('下载失败', result.errorMessage);
         return null;
@@ -370,8 +377,9 @@ class YtDlpService {
 
   /// 解析下载产物的真实路径。
   ///
-  /// 优先级：插件返回的真实路径 > 按标题前缀匹配 > null。
+  /// 优先级：插件返回的真实路径 > 按标题安全化匹配 > null。
   /// 不再使用"目录中最新文件"的启发式，避免多任务并发写入同一目录时张冠李戴。
+  /// 也绝不返回含 `%(...)` 的未展开模板。
   Future<String?> _resolveOutputPath(
     String? pluginOutputPath,
     String downloadPath,
@@ -380,18 +388,23 @@ class YtDlpService {
     // 1. 插件已返回真实存在的文件路径（且不是未展开的模板）
     if (pluginOutputPath != null &&
         pluginOutputPath.isNotEmpty &&
-        !pluginOutputPath.contains('%(')) {
+        !isYtDlpTemplatePath(pluginOutputPath)) {
       final pluginFile = File(pluginOutputPath);
       if (await pluginFile.exists()) {
         return pluginOutputPath;
       }
+      // 有时插件只回文件名，拼到下载目录再试
+      final joined = '$downloadPath/${fileNameFromPath(pluginOutputPath)}';
+      if (joined != pluginOutputPath && await File(joined).exists()) {
+        return joined;
+      }
     }
 
-    // 2. 按 VidBee_<标题> 前缀在下载目录中匹配
+    // 2. 按 VidBee_<标题> 在下载目录中安全化匹配
     return _findDownloadedFileByTitle(downloadPath, title);
   }
 
-  /// 在下载目录中按 VidBee_<标题> 前缀查找已完成文件。
+  /// 在下载目录中按 VidBee_<标题> 查找已完成文件（安全化比对）。
   Future<String?> _findDownloadedFileByTitle(
     String downloadPath,
     String? title,
@@ -400,50 +413,34 @@ class YtDlpService {
       final dir = Directory(downloadPath);
       if (!await dir.exists()) return null;
 
-      final candidates = <File>[];
+      final candidatePaths = <String>[];
+      final modifiedMsByPath = <String, int>{};
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
         if (entity.path.endsWith('.part') || entity.path.endsWith('.ytdl')) {
           continue;
         }
-        candidates.add(entity);
-      }
-      if (candidates.isEmpty) return null;
-
-      // yt-dlp 会对文件名中的非法字符做替换，因此仅用标题的"安全前缀"匹配。
-      final safePrefix = _safeFileNamePrefix(title);
-      if (safePrefix.isNotEmpty) {
-        final matches = <({File file, DateTime modified})>[];
-        for (final file in candidates) {
-          final name = file.path.replaceAll('\\', '/').split('/').last;
-          if (!name.startsWith('VidBee_$safePrefix')) continue;
-          final stat = await file.stat();
-          matches.add((file: file, modified: stat.modified));
-        }
-        if (matches.isNotEmpty) {
-          matches.sort((a, b) => b.modified.compareTo(a.modified));
-          return matches.first.file.path;
-        }
+        candidatePaths.add(entity.path);
+        final stat = await entity.stat();
+        modifiedMsByPath[entity.path] = stat.modified.millisecondsSinceEpoch;
       }
 
-      return null;
+      final matched = matchDownloadedFileByTitle(
+        candidatePaths: candidatePaths,
+        title: title,
+        modifiedMsByPath: modifiedMsByPath,
+      );
+      if (matched == null) {
+        AppLogger.debug(
+          '按标题未匹配到下载文件: dir=$downloadPath, title=$title, '
+          'candidates=${candidatePaths.length}',
+        );
+      }
+      return matched;
     } catch (e) {
       AppLogger.error('查找下载文件失败', e);
       return null;
     }
-  }
-
-  /// 取标题开头的连续"文件名安全字符"，用于匹配 yt-dlp 生成的文件名前缀。
-  String _safeFileNamePrefix(String? title) {
-    if (title == null || title.isEmpty) return '';
-    final buffer = StringBuffer();
-    for (final rune in title.runes) {
-      final ch = String.fromCharCode(rune);
-      // 遇到 yt-dlp 通常会替换/移除的字符即停止，保留前面的安全前缀
-      if (RegExp(r'[\\/:*?"<>|]').hasMatch(ch)) break;
-      buffer.write(ch);
-    }
-    return buffer.toString().trim();
   }
 
   /// 取消下载
