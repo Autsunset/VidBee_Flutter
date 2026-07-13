@@ -218,6 +218,7 @@ class AppLocalizations {
   String get savedFile => _translate('savedFile');
   String get typeField => _translate('typeField');
   String get statusField => _translate('statusField');
+  String get downloadedTime => _translate('downloadedTime');
   String get close => _translate('close');
   String get unknown => _translate('unknown');
   String get parseFailedExpired => _translate('parseFailedExpired');

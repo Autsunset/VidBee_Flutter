@@ -402,6 +402,8 @@ class TaskDetailsBottomSheet extends StatelessWidget {
                       ],
                       const SizedBox(height: 16),
                     ],
+                    // 时间 / 时长 / 大小
+                    ..._buildMetaRows(context, task, loc),
                     Row(
                       children: [
                         Expanded(
@@ -515,5 +517,105 @@ class TaskDetailsBottomSheet extends StatelessWidget {
       default:
         return loc.unknown;
     }
+  }
+
+  /// 详情页元数据：下载时间 / 时长 / 大小。
+  ///
+  /// 时间优先 completedAt，其次 createdAt；两者都无效（<=0）时不展示，
+  /// 避免把 epoch 0 渲染成 1970/01/01。
+  List<Widget> _buildMetaRows(
+    BuildContext context,
+    DownloadTask task,
+    AppLocalizations loc,
+  ) {
+    final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+    final widgets = <Widget>[];
+
+    final timeMs = _effectiveTimestampMs(task);
+    if (timeMs != null) {
+      widgets.addAll([
+        Text(loc.downloadedTime, style: labelStyle),
+        const SizedBox(height: 4),
+        Text(_formatTimestamp(timeMs)),
+        const SizedBox(height: 16),
+      ]);
+    }
+
+    final durationText = _formatDuration(task.duration);
+    final sizeText = _formatFileSize(task.fileSize);
+    if (durationText != null || sizeText != null) {
+      widgets.add(
+        Row(
+          children: [
+            if (durationText != null)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loc.duration, style: labelStyle),
+                    const SizedBox(height: 4),
+                    Text(durationText),
+                  ],
+                ),
+              ),
+            if (sizeText != null)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loc.size, style: labelStyle),
+                    const SizedBox(height: 4),
+                    Text(sizeText),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+      widgets.add(const SizedBox(height: 16));
+    }
+
+    return widgets;
+  }
+
+  /// 取可用于展示的时间戳；0 / 负数视为无效。
+  int? _effectiveTimestampMs(DownloadTask task) {
+    final completed = task.completedAt;
+    if (completed != null && completed > 0) return completed;
+    if (task.createdAt > 0) return task.createdAt;
+    return null;
+  }
+
+  String _formatTimestamp(int ms) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}/${two(dt.month)}/${two(dt.day)} '
+        '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+
+  /// 视频时长（秒）。null / <=0 不展示，避免 00:00。
+  String? _formatDuration(int? seconds) {
+    if (seconds == null || seconds <= 0) return null;
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    String two(int n) => n.toString().padLeft(2, '0');
+    if (h > 0) return '${two(h)}:${two(m)}:${two(s)}';
+    return '${two(m)}:${two(s)}';
+  }
+
+  /// 文件大小。null / <=0 不展示，避免 0B。
+  String? _formatFileSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return null;
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }

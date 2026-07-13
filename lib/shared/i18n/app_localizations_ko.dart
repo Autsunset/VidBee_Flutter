@@ -181,6 +181,7 @@ class AppLocalizationsKo {
     'savedFile': '저장된 파일',
     'typeField': '유형',
     'statusField': '상태',
+    'downloadedTime': '다운로드 시간',
     'close': '닫기',
     'unknown': '알 수 없음',
     'parseFailedExpired':

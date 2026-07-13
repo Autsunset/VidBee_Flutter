@@ -11,6 +11,13 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
   DownloadHistoryDao(super.db);
 
   Future<int> insertDownloadHistory(DownloadTask task) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 优先使用任务自身的完成/创建时间；避免把 0 写入后读出成 1970。
+    final completedAt = (task.completedAt != null && task.completedAt! > 0)
+        ? task.completedAt
+        : now;
+    final downloadedAt = task.createdAt > 0 ? task.createdAt : now;
+
     return into(downloadHistory).insertOnConflictUpdate(
       DownloadHistoryCompanion(
         id: Value(task.id),
@@ -23,8 +30,8 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
         savedFileName: Value(task.savedFileName),
         fileSize: Value(task.fileSize),
         duration: Value(task.duration),
-        downloadedAt: Value(DateTime.now().millisecondsSinceEpoch),
-        completedAt: Value(task.completedAt),
+        downloadedAt: Value(downloadedAt),
+        completedAt: Value(completedAt),
         error: Value(task.error),
         ytDlpCommand: Value(task.ytDlpCommand),
         ytDlpLog: Value(task.ytDlpLog),
@@ -85,10 +92,15 @@ class DownloadHistoryDao extends DatabaseAccessor<AppDatabase>
       thumbnail: row.thumbnail,
       type: DownloadType.values.firstWhere((e) => e.name == row.type),
       status: DownloadStatus.values.firstWhere((e) => e.name == row.status),
-      createdAt: row.downloadedAt,
-      completedAt: row.completedAt,
-      duration: row.duration,
-      fileSize: row.fileSize,
+      // downloadedAt 为 0 时用当前时间兜底，避免 UI 显示 1970
+      createdAt: row.downloadedAt > 0
+          ? row.downloadedAt
+          : DateTime.now().millisecondsSinceEpoch,
+      completedAt: (row.completedAt != null && row.completedAt! > 0)
+          ? row.completedAt
+          : null,
+      duration: (row.duration != null && row.duration! > 0) ? row.duration : null,
+      fileSize: (row.fileSize != null && row.fileSize! > 0) ? row.fileSize : null,
       downloadPath: row.downloadPath,
       savedFileName: row.savedFileName,
       error: row.error,

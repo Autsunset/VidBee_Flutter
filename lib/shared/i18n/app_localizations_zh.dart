@@ -180,6 +180,7 @@ class AppLocalizationsZh {
     'savedFile': '已保存文件',
     'typeField': '类型',
     'statusField': '状态',
+    'downloadedTime': '下载时间',
     'close': '关闭',
     'unknown': '未知',
     'parseFailedExpired':

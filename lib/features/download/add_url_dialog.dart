@@ -494,7 +494,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       thumbnail: videoInfo.thumbnail,
       channel: videoInfo.uploader,
       duration: videoInfo.duration?.toString(),
-      fileSize: selectedFormat?.filesize,
+      // filesize 常为空；优先 filesize，其次近似值，完成后再用落盘实测覆盖
+      fileSize: selectedFormat?.filesize ?? selectedFormat?.filesizeApprox,
       downloadPath: downloadPath,
     );
 

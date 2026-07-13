@@ -181,6 +181,7 @@ class AppLocalizationsJa {
     'savedFile': '保存したファイル',
     'typeField': '種類',
     'statusField': 'ステータス',
+    'downloadedTime': 'ダウンロード日時',
     'close': '閉じる',
     'unknown': '不明',
     'parseFailedExpired':

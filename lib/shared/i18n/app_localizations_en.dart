@@ -182,6 +182,7 @@ class AppLocalizationsEn {
     'savedFile': 'Saved File',
     'typeField': 'Type',
     'statusField': 'Status',
+    'downloadedTime': 'Downloaded At',
     'close': 'Close',
     'unknown': 'Unknown',
     'parseFailedExpired':

@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/download_task.dart';
@@ -47,6 +48,10 @@ class DownloadService {
   /// 历史记录文件名回填的轮询重试次数与间隔。
   static const int _historyUpdateMaxAttempts = 5;
   static const Duration _historyUpdateRetryDelay = Duration(milliseconds: 20);
+
+  /// 完成事件常早于 startDownload 返回真实路径；保存历史前短暂等待路径回填。
+  static const int _resolvePathWaitAttempts = 50;
+  static const Duration _resolvePathWaitDelay = Duration(milliseconds: 20);
 
   StreamSubscription? _ytdlpProgressSubscription;
   StreamSubscription? _ytdlpStatusSubscription;
@@ -194,21 +199,63 @@ class DownloadService {
 
   /// 保存到历史记录
   Future<void> _saveToHistory(DownloadTask task) async {
-    // 如果 startDownload 已返回真实文件路径，则补充到历史记录中。
+    // 完成事件往往先于 startDownload 返回；先等一小段时间拿真实路径。
     // 绝不把 yt-dlp 未展开的模板路径（VidBee_%(title)s.%(ext)s）写入历史。
-    final resolvedPath = _resolvedFileNames.remove(task.id);
-    final usablePath =
-        resolvedPath != null && !isYtDlpTemplatePath(resolvedPath)
-        ? resolvedPath
-        : null;
-    final enrichedTask = usablePath != null
-        ? task.copyWith(
-            savedFileName:
-                task.savedFileName ?? fileNameFromPath(usablePath),
-            downloadPath: usablePath,
-          )
-        : task;
+    final usablePath = await _awaitResolvedPath(task.id);
+    final fileSize = await _resolveFileSize(usablePath, task.fileSize);
+    final completedAt = DateTime.now().millisecondsSinceEpoch;
+
+    final enrichedTask = task.copyWith(
+      completedAt: completedAt,
+      // duration/fileSize 保留任务里已有的有效值；文件 size 优先用落盘实测
+      fileSize: fileSize,
+      savedFileName: usablePath != null
+          ? (task.savedFileName ?? fileNameFromPath(usablePath))
+          : task.savedFileName,
+      // 仅在解析到真实文件路径时覆盖；避免把目录路径当最终文件路径展示
+      downloadPath: usablePath ?? task.downloadPath,
+    );
     await _historyService.addToHistory(enrichedTask);
+  }
+
+  /// 等待 startDownload 回填真实路径；超时则返回当前缓存（可能为 null）。
+  Future<String?> _awaitResolvedPath(String taskId) async {
+    for (var i = 0; i < _resolvePathWaitAttempts; i++) {
+      final path = _peekResolvedPath(taskId);
+      if (path != null) {
+        _resolvedFileNames.remove(taskId);
+        return path;
+      }
+      await Future<void>.delayed(_resolvePathWaitDelay);
+    }
+    final latePath = _peekResolvedPath(taskId);
+    _resolvedFileNames.remove(taskId);
+    return latePath;
+  }
+
+  String? _peekResolvedPath(String taskId) {
+    final path = _resolvedFileNames[taskId];
+    if (path == null || path.isEmpty || isYtDlpTemplatePath(path)) {
+      return null;
+    }
+    return path;
+  }
+
+  /// 优先用落盘文件实测大小；失败再回退任务里已有的 filesize。
+  Future<int?> _resolveFileSize(String? path, int? fallback) async {
+    if (path != null && path.isNotEmpty && !isYtDlpTemplatePath(path)) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          final size = await file.length();
+          if (size > 0) return size;
+        }
+      } catch (e) {
+        AppLogger.debug('读取下载文件大小失败: $path, $e');
+      }
+    }
+    if (fallback != null && fallback > 0) return fallback;
+    return fallback;
   }
 
   /// 处理队列
@@ -297,11 +344,13 @@ class DownloadService {
     String path,
     String savedFileName,
   ) async {
+    final fileSize = await _resolveFileSize(path, null);
     for (var attempt = 0; attempt < _historyUpdateMaxAttempts; attempt++) {
       final updated = await _historyService.updateSavedFile(
         taskId,
         path,
         savedFileName,
+        fileSize: fileSize,
       );
       if (updated) return;
       if (!_completionHandledTaskIds.contains(taskId)) return;

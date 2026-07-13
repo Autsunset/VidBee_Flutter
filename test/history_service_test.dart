@@ -77,6 +77,7 @@ void main() {
       'one',
       '/storage/emulated/0/Download/VidBee_Clip.mp4',
       'VidBee_Clip.mp4',
+      fileSize: 12345,
     );
 
     final cached = service.getHistory().single;
@@ -84,7 +85,21 @@ void main() {
 
     expect(cached.savedFileName, 'VidBee_Clip.mp4');
     expect(cached.downloadPath, '/storage/emulated/0/Download/VidBee_Clip.mp4');
+    expect(cached.fileSize, 12345);
     expect(persisted.savedFileName, 'VidBee_Clip.mp4');
+    expect(persisted.fileSize, 12345);
+  });
+
+  test('addToHistory always stamps a positive completedAt', () async {
+    final before = DateTime.now().millisecondsSinceEpoch;
+    await service.addToHistory(task('one'));
+    final after = DateTime.now().millisecondsSinceEpoch;
+
+    final saved = service.getHistory().single;
+    expect(saved.completedAt, isNotNull);
+    expect(saved.completedAt!, greaterThan(0));
+    expect(saved.completedAt!, greaterThanOrEqualTo(before));
+    expect(saved.completedAt!, lessThanOrEqualTo(after));
   });
 
   test('updateSavedFile is a no-op for unknown task id', () async {

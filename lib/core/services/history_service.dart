@@ -61,16 +61,22 @@ class HistoryService {
   Future<bool> updateSavedFile(
     String taskId,
     String downloadPath,
-    String savedFileName,
-  ) async {
+    String savedFileName, {
+    int? fileSize,
+  }) async {
     await initialize();
 
     final index = _history.indexWhere((t) => t.id == taskId);
     if (index == -1) return false;
 
-    final updated = _history[index].copyWith(
+    final existing = _history[index];
+    final updated = existing.copyWith(
       downloadPath: downloadPath,
       savedFileName: savedFileName,
+      // 仅在拿到有效实测大小时覆盖，避免把已有值抹成 null
+      fileSize: (fileSize != null && fileSize > 0)
+          ? fileSize
+          : existing.fileSize,
     );
     _history[index] = updated;
     await _downloadHistoryDao.insertDownloadHistory(updated);
