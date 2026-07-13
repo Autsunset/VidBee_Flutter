@@ -426,19 +426,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final allPaths = await _cookieService.getAllCookieFilePaths();
     if (mounted) {
       setState(() {
-        // 显示第一个路径，或者如果有多个，显示汇总信息
-        if (allPaths.isEmpty) {
-          _cookieFilePath = null;
-        } else if (allPaths.length == 1) {
-          _cookieFilePath = allPaths.values.first;
-        } else {
-          _cookieFilePath = _locTemplate(
-            AppLocalizations.of(context)!.cookieImportedSummary,
-            {'count': allPaths.length},
-          );
-        }
+        _cookieFilePath = _cookieFilePathLabel(allPaths);
       });
     }
+  }
+
+  Future<void> _refreshCookieState() async {
+    final cookies = await _cookieService.getAllCookies();
+    final allPaths = await _cookieService.getAllCookieFilePaths();
+    if (!mounted) return;
+    setState(() {
+      _cookies = cookies;
+      _cookieFilePath = _cookieFilePathLabel(allPaths);
+    });
+  }
+
+  String? _cookieFilePathLabel(Map<String, String> allPaths) {
+    if (allPaths.isEmpty) return null;
+    if (allPaths.length == 1) return allPaths.values.first;
+    return _locTemplate(AppLocalizations.of(context)!.cookieImportedSummary, {
+      'count': allPaths.length,
+    });
   }
 
   /// 单独清理某个网站的 Cookie
@@ -504,8 +512,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       if (!mounted) return;
       if (success) {
-        await _loadCookieFilePath();
-        await _loadCookies();
+        await _refreshCookieState();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -639,7 +646,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
 
     if (result == true) {
-      await _loadCookies();
+      await _refreshCookieState();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -676,7 +683,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
 
     if (result == true) {
-      await _loadCookies();
+      await _refreshCookieState();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -791,7 +798,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           onClearCookieFile: _clearCookieFile,
           onLoginBilibili: () => _loginBilibili(context),
           onLoginYouTube: () => _loginYouTube(context),
-          onEditBilibiliCookie: () => _showCookieDialog(context, 'bilibili.com'),
+          onEditBilibiliCookie: () =>
+              _showCookieDialog(context, 'bilibili.com'),
           onEditYouTubeCookie: () => _showCookieDialog(context, 'youtube.com'),
           onRemoveBilibiliCookie: () => _removeSingleCookie('bilibili.com'),
           onRemoveYouTubeCookie: () => _removeSingleCookie('youtube.com'),
@@ -1055,8 +1063,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     setDialogState(() {
                       ref.read(languageProvider.notifier).state = value;
                       // 更新本地语言名称
-                      _language =
-                          getLanguageByCode(value)?.nativeName ?? value;
+                      _language = getLanguageByCode(value)?.nativeName ?? value;
                     });
                   }
                 },
@@ -1396,64 +1403,71 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(loc.about),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.download_for_offline, size: 48),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppConstants.appName,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${loc.version} $_appVersionLabel',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(loc.appDescription),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: () async {
-                final uri = Uri.parse(AppConstants.githubUrl);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-              child: Row(
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  const Icon(Icons.code, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    AppConstants.githubUrl,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      decoration: TextDecoration.underline,
+                  const Icon(Icons.download_for_offline, size: 48),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppConstants.appName,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${loc.version} $_appVersionLabel',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '© 2026 ${AppConstants.appName}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(height: 16),
+              Text(loc.appDescription),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () async {
+                  final uri = Uri.parse(AppConstants.githubUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: Row(
+                  children: [
+                    const Icon(Icons.code, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        AppConstants.githubUrl,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                '© 2026 ${AppConstants.appName}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(

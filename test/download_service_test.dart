@@ -31,7 +31,7 @@ void main() {
   }
 
   test(
-    'initialize restores pending tasks and records interrupted active tasks',
+    'initialize restores pending tasks without starting them and records interrupted active tasks',
     () async {
       final pending = task('pending', DownloadStatus.pending);
       final downloading = task('downloading', DownloadStatus.downloading);
@@ -54,7 +54,8 @@ void main() {
       await service.initialize();
       await Future<void>.delayed(Duration.zero);
 
-      expect(ytDlp.startedTaskIds, contains('pending'));
+      expect(ytDlp.startedTaskIds, isEmpty);
+      expect(service.getAllTasks().map((task) => task.id), contains('pending'));
       final history = await dao.getAllDownloadHistory();
       expect(history, hasLength(1));
       expect(history.single.id, 'downloading');
