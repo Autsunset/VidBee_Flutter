@@ -51,9 +51,12 @@ android {
         release {
             // 使用 release 签名配置
             signingConfig = signingConfigs.getByName("release")
-            // 开启 R8 压缩/混淆；proguard-rules.pro 已保留 extractor/youtubedl/Flutter 关键路径
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // R8 在 2026.07.11.2 开启后导致部分机型「打开即闪退」
+            // （youtubedl-android / extractor / 通知插件依赖反射与 native，
+            //  keep 规则尚未覆盖全量路径）。紧急回退到关闭混淆；
+            // 后续补齐完整 keep 规则后再评估重新开启。
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

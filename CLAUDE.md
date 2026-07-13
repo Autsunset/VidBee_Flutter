@@ -60,7 +60,7 @@ i18n is **hand-maintained, not generated** from ARB files. `AppLocalizations` ex
 ## Platform / build notes
 
 - **Android only** in practice (a `windows/` folder exists but the app targets Android). `minSdk = 24` is required by the `extractor` plugin.
-- Release builds enable R8 minify + resource shrinking (`isMinifyEnabled = true`); keep `android/app/proguard-rules.pro` updated for extractor / youtubedl-android / Flutter keep rules. If a release-only crash appears, check R8 first.
+- Release builds currently **disable** R8 minify/resource shrinking (`isMinifyEnabled = false`) after `v2026.07.11.2` re-enable caused open-on-launch crashes on some devices. Keep `android/app/proguard-rules.pro` ready; only re-enable minify after full keep-rule validation on real devices.
 - Signing reads `android/key.properties`; CI (`.github/workflows/build.yml`, runs on `windows-latest`) decodes the keystore from secrets. Pushing a `v*.*.*` tag builds a signed APK and publishes a GitHub release.
 - The app requests `MANAGE_EXTERNAL_STORAGE` and defaults downloads to `/storage/emulated/0/Download` so other apps can see them.
 

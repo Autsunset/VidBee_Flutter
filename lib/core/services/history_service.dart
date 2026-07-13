@@ -20,10 +20,16 @@ class HistoryService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    final history = await _downloadHistoryDao.getAllDownloadHistory();
-    _history
-      ..clear()
-      ..addAll(history);
+    try {
+      final history = await _downloadHistoryDao.getAllDownloadHistory();
+      _history
+        ..clear()
+        ..addAll(history);
+    } catch (_) {
+      // 历史加载失败不应阻止应用启动/下载服务初始化。
+      // 保留空列表，后续写入仍可走 insertOnConflictUpdate。
+      _history.clear();
+    }
     _isInitialized = true;
     _notifyHistoryUpdated();
   }

@@ -36,9 +36,13 @@ void main() {
         DeviceOrientation.portraitDown,
       ]);
 
-      // 初始化通知服务
-      final notificationService = NotificationService();
-      await notificationService.initialize();
+      // 通知初始化失败不能阻塞启动；否则用户会看到「打开即闪退」。
+      try {
+        final notificationService = NotificationService();
+        await notificationService.initialize();
+      } catch (e, stackTrace) {
+        AppLogger.error('通知服务初始化失败，已跳过', e, stackTrace);
+      }
 
       AppLogger.info('VidBee 启动完成');
       runApp(const ProviderScope(child: VidBeeApp()));

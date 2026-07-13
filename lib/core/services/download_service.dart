@@ -510,25 +510,31 @@ class DownloadService {
       final interruptedTasks = <DownloadTask>[];
 
       for (final item in decoded) {
-        if (item is! Map<String, dynamic>) continue;
-        final task = DownloadTask.fromJson(item);
-        switch (task.status) {
-          case DownloadStatus.pending:
-            restoredQueue.add(task);
-            break;
-          case DownloadStatus.downloading:
-          case DownloadStatus.processing:
-            interruptedTasks.add(
-              task.copyWith(
-                status: DownloadStatus.error,
-                error: task.error ?? '应用关闭或下载进程中断',
-              ),
-            );
-            break;
-          case DownloadStatus.completed:
-          case DownloadStatus.error:
-          case DownloadStatus.cancelled:
-            break;
+        if (item is! Map) continue;
+        try {
+          final task = DownloadTask.fromJson(
+            Map<String, dynamic>.from(item),
+          );
+          switch (task.status) {
+            case DownloadStatus.pending:
+              restoredQueue.add(task);
+              break;
+            case DownloadStatus.downloading:
+            case DownloadStatus.processing:
+              interruptedTasks.add(
+                task.copyWith(
+                  status: DownloadStatus.error,
+                  error: task.error ?? '应用关闭或下载进程中断',
+                ),
+              );
+              break;
+            case DownloadStatus.completed:
+            case DownloadStatus.error:
+            case DownloadStatus.cancelled:
+              break;
+          }
+        } catch (e) {
+          AppLogger.debug('跳过无法恢复的未完成任务条目: $e');
         }
       }
 
