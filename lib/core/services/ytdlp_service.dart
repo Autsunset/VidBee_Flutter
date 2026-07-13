@@ -15,6 +15,14 @@ import '../utils/media_scanner.dart';
 import '../utils/permission_helper.dart';
 import 'cookie_service.dart';
 
+class YtDlpUpdateResult {
+  const YtDlpUpdateResult({required this.success, this.version, this.message});
+
+  final bool success;
+  final String? version;
+  final String? message;
+}
+
 /// yt-dlp 服务类
 class YtDlpService {
   static final YtDlpService _instance = YtDlpService._internal();
@@ -38,12 +46,23 @@ class YtDlpService {
 
   final YoutubeDLFlutter _youtubeDL = YoutubeDLFlutter.instance;
   bool _isInitialized = false;
+  Future<bool>? _initializeFuture;
+  Future<YtDlpUpdateResult>? _updateFuture;
   final Map<String, StreamSubscription> _subscriptions = {};
 
   /// 初始化服务
   Future<bool> initialize() async {
     if (_isInitialized) return true;
+    final currentInitialization = _initializeFuture;
+    if (currentInitialization != null) return currentInitialization;
 
+    _initializeFuture = _initialize().whenComplete(() {
+      _initializeFuture = null;
+    });
+    return _initializeFuture!;
+  }
+
+  Future<bool> _initialize() async {
     try {
       final result = await _youtubeDL.initialize(
         enableFFmpeg: true,
@@ -86,32 +105,33 @@ class YtDlpService {
     }
 
     await prefs.setInt(_prefLastYtDlpUpdateCheck, now);
-    await _updateYtDlpWithRetry();
+    final currentUpdate = _updateFuture;
+    if (currentUpdate != null) {
+      await currentUpdate;
+      return;
+    }
+    _updateFuture = _updateYtDlpWithRetry().whenComplete(() {
+      _updateFuture = null;
+    });
+    await _updateFuture;
   }
 
   /// 确保 yt-dlp 更新到最新版本（带重试机制）
-  Future<void> _updateYtDlpWithRetry() async {
+  Future<YtDlpUpdateResult> _updateYtDlpWithRetry() async {
+    YtDlpUpdateResult lastResult = const YtDlpUpdateResult(
+      success: false,
+      message: 'Update failed',
+    );
     for (int i = 0; i < _ytDlpUpdateMaxRetries; i++) {
-      try {
-        AppLogger.debug(
-          '正在自动更新 yt-dlp (尝试 ${i + 1}/$_ytDlpUpdateMaxRetries)...',
-        );
-        final result = await _youtubeDL.updateYoutubeDL(
-          channel: UpdateChannel.stable,
-        );
-        if (result.status == OperationStatus.success) {
-          AppLogger.debug('yt-dlp 更新成功: ${result.version}');
-          return;
-        } else {
-          AppLogger.error('yt-dlp 更新失败', result.errorMessage);
-        }
-      } catch (e) {
-        AppLogger.error('第${i + 1}次更新 yt-dlp 出错', e);
-      }
+      AppLogger.debug('正在自动更新 yt-dlp (尝试 ${i + 1}/$_ytDlpUpdateMaxRetries)...');
+      lastResult = await _updateYtDlpOnce();
+      if (lastResult.success) return lastResult;
+      AppLogger.error('yt-dlp 更新失败', lastResult.message);
       // 等待后重试
       await Future.delayed(_ytDlpUpdateRetryDelay);
     }
     AppLogger.error('yt-dlp 自动更新失败，将使用内置版本');
+    return lastResult;
   }
 
   /// 设置事件监听器
@@ -359,10 +379,7 @@ class YtDlpService {
             'dir=$downloadPath',
           );
           // 仍尝试扫描目录中最新的 VidBee 文件，尽量让相册能看到
-          final fallback = await _findDownloadedFileByTitle(
-            downloadPath,
-            null,
-          );
+          final fallback = await _findDownloadedFileByTitle(downloadPath, null);
           if (fallback != null) {
             AppLogger.debug('回退扫描最新 VidBee 文件: $fallback');
             await MediaScanner.scanFile(fallback);
@@ -466,20 +483,47 @@ class YtDlpService {
   }
 
   /// 更新 yt-dlp
-  Future<bool> updateYtDlp() async {
+  Future<YtDlpUpdateResult> updateYtDlp() async {
+    final initialized = await initialize();
+    if (!initialized) {
+      return const YtDlpUpdateResult(success: false, message: 'yt-dlp 初始化失败');
+    }
+    final currentUpdate = _updateFuture;
+    if (currentUpdate != null) return currentUpdate;
+
+    _updateFuture = _updateYtDlpOnce().whenComplete(() {
+      _updateFuture = null;
+    });
+    return _updateFuture!;
+  }
+
+  Future<YtDlpUpdateResult> _updateYtDlpOnce() async {
     try {
       final result = await _youtubeDL.updateYoutubeDL(
         channel: UpdateChannel.stable,
       );
-      return result.status == OperationStatus.success;
+      final success = result.status == OperationStatus.success;
+      if (success) {
+        AppLogger.debug('yt-dlp 更新成功: ${result.version}');
+      } else {
+        AppLogger.error('yt-dlp 更新失败', result.errorMessage);
+      }
+      return YtDlpUpdateResult(
+        success: success,
+        version: result.version,
+        message: result.errorMessage,
+      );
     } catch (e) {
       AppLogger.error('更新 yt-dlp 失败', e);
-      return false;
+      return YtDlpUpdateResult(success: false, message: e.toString());
     }
   }
 
   /// 获取版本信息
   Future<Map<String, String>> getVersionInfo() async {
+    final initialized = await initialize();
+    if (!initialized) return {};
+
     try {
       final versionInfo = await _youtubeDL.getVersion();
       return {

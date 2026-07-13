@@ -138,21 +138,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     try {
       final ytDlpService = ref.read(ytDlpServiceProvider);
-      final success = await ytDlpService.updateYtDlp();
+      final result = await ytDlpService.updateYtDlp();
 
       if (mounted) {
-        if (success) {
+        await _loadVersionInfo();
+        if (!mounted) return;
+
+        if (result.success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(loc.updateYtDlpSuccess),
+              content: Text(
+                result.version == null || result.version!.isEmpty
+                    ? loc.updateYtDlpSuccess
+                    : '${loc.updateYtDlpSuccess} (${result.version})',
+              ),
               duration: const Duration(seconds: 3),
             ),
           );
-          await _loadVersionInfo();
         } else {
+          final message = result.message;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(loc.updateYtDlpRetry),
+              content: Text(
+                message == null || message.isEmpty
+                    ? loc.updateYtDlpRetry
+                    : '${loc.updateYtDlpRetry}: $message',
+              ),
               duration: const Duration(seconds: 3),
               backgroundColor: Colors.red,
             ),
