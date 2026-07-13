@@ -129,7 +129,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final savedLanguage = prefs.getString('language');
     if (savedLanguage != null && savedLanguage.isNotEmpty) {
       if (mounted) {
-        ref.read(languageProvider.notifier).state = savedLanguage;
+        ref.read(languageProvider.notifier).state = resolveAppLanguageCode(
+          savedLanguage,
+        );
       }
     }
     // 加载主题设置

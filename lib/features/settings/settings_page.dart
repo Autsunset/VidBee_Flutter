@@ -94,9 +94,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _audioQuality = prefs.getString('default_audio_quality') ?? '3';
       _customUA = prefs.getString('custom_ua') ?? '';
       // 加载语言设置
-      final languageCode = prefs.getString('language') ?? 'zh';
+      final savedLanguage = prefs.getString('language');
+      final languageCode = savedLanguage == null || savedLanguage.isEmpty
+          ? ref.read(languageProvider)
+          : resolveAppLanguageCode(savedLanguage);
       ref.read(languageProvider.notifier).state = languageCode;
-      _language = getLanguageByCode(languageCode)?.nativeName ?? '简体中文';
+      _language = getLanguageByCode(languageCode)?.nativeName ?? 'English';
       // 下载路径从 provider 读取
     });
   }
