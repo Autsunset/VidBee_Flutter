@@ -1,6 +1,7 @@
 package com.vidbee.vidbee_flutter
 
 import android.content.Intent
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -80,12 +81,29 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // 通知系统媒体库索引新文件，使相册/文件管理器能看到 Download 目录下的视频。
+    // 优先 MediaScannerConnection（Android 10+ 仍有效）；广播作为兼容兜底。
     private fun scanFile(filePath: String) {
         val file = File(filePath)
-        if (file.exists()) {
-            val intent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-            intent.data = Uri.fromFile(file)
+        if (!file.exists() || !file.isFile) return
+
+        val mimeType = guessMimeType(file.name)
+        MediaScannerConnection.scanFile(
+            applicationContext,
+            arrayOf(file.absolutePath),
+            arrayOf(mimeType),
+            null,
+        )
+
+        // 旧版广播兜底（部分定制 ROM 仍依赖）
+        try {
+            @Suppress("DEPRECATION")
+            val intent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE).apply {
+                data = Uri.fromFile(file)
+            }
             applicationContext.sendBroadcast(intent)
+        } catch (_: Exception) {
+            // ignore
         }
     }
 

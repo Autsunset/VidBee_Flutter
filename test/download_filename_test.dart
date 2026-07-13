@@ -79,31 +79,46 @@ void main() {
       expect(matched, '/d/VidBee_clip.webm');
     });
 
-    test('无匹配返回 null，不回退到模板', () {
+    test('标题对不上时回退到最新 VidBee 文件（相册扫描兜底）', () {
       final matched = matchDownloadedFileByTitle(
         candidatePaths: [
           '/d/VidBee_%(title)s.%(ext)s',
           '/d/other.mp4',
+          '/d/VidBee_实际落盘名.mp4',
         ],
-        title: '不存在的标题',
+        title: '完全不同的标题XYZ',
+        modifiedMsByPath: {
+          '/d/VidBee_实际落盘名.mp4': 999,
+        },
       );
-      expect(matched, isNull);
+      expect(matched, '/d/VidBee_实际落盘名.mp4');
     });
 
-    test('空标题返回 null', () {
+    test('allowNewestFallback=false 时标题对不上返回 null', () {
       expect(
         matchDownloadedFileByTitle(
           candidatePaths: ['/d/VidBee_a.mp4'],
-          title: null,
+          title: 'bbb',
+          allowNewestFallback: false,
         ),
         isNull,
       );
+    });
+
+    test('空标题时回退最新 VidBee 文件', () {
       expect(
         matchDownloadedFileByTitle(
-          candidatePaths: ['/d/VidBee_a.mp4'],
-          title: '???',
+          candidatePaths: [
+            '/d/VidBee_old.mp4',
+            '/d/VidBee_new.mp4',
+          ],
+          title: null,
+          modifiedMsByPath: {
+            '/d/VidBee_old.mp4': 1,
+            '/d/VidBee_new.mp4': 2,
+          },
         ),
-        isNull, // 全是非法字符，sanitize 后为空
+        '/d/VidBee_new.mp4',
       );
     });
   });

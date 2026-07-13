@@ -41,41 +41,60 @@ String sanitizeFilenameComponent(String input) {
 /// [candidatePaths] 应为下载目录中的文件完整路径（调用方已过滤目录 / .part / .ytdl）。
 /// [modifiedMsByPath] 可选：路径 → 修改时间毫秒，用于同匹配时取最新。
 /// 返回匹配到的完整路径；找不到返回 null（**不会**返回含 `%(...)` 的模板）。
+///
+/// 匹配顺序：
+/// 1. 标题安全化后与文件名主体比对
+/// 2. 若标题匹配失败，回退到最近修改的 `VidBee_*` 文件
+///    （与 7.11.1 前“最新文件”策略对齐，保证单任务下载可扫描进相册）
 String? matchDownloadedFileByTitle({
   required List<String> candidatePaths,
   required String? title,
   String filePrefix = 'VidBee_',
   Map<String, int>? modifiedMsByPath,
+  bool allowNewestFallback = true,
 }) {
   if (candidatePaths.isEmpty) return null;
 
-  final titleSan = sanitizeFilenameComponent(title ?? '');
-  if (titleSan.isEmpty) return null;
-
-  final matches = <String>[];
+  final vidbeePaths = <String>[];
   for (final path in candidatePaths) {
     if (isYtDlpTemplatePath(path)) continue;
     final name = fileNameFromPath(path);
     if (!name.startsWith(filePrefix)) continue;
+    vidbeePaths.add(path);
+  }
+  if (vidbeePaths.isEmpty) return null;
 
-    final stem = stripFileExtension(name).substring(filePrefix.length);
-    final stemSan = sanitizeFilenameComponent(stem);
-    if (stemSan.isEmpty) continue;
-
-    if (_titleMatchesStem(titleSan, stemSan)) {
-      matches.add(path);
+  final titleSan = sanitizeFilenameComponent(title ?? '');
+  if (titleSan.isNotEmpty) {
+    final matches = <String>[];
+    for (final path in vidbeePaths) {
+      final name = fileNameFromPath(path);
+      final stem = stripFileExtension(name).substring(filePrefix.length);
+      final stemSan = sanitizeFilenameComponent(stem);
+      if (stemSan.isEmpty) continue;
+      if (_titleMatchesStem(titleSan, stemSan)) {
+        matches.add(path);
+      }
+    }
+    if (matches.isNotEmpty) {
+      return _pickNewest(matches, modifiedMsByPath);
     }
   }
 
-  if (matches.isEmpty) return null;
-  if (matches.length == 1 || modifiedMsByPath == null) return matches.first;
+  if (!allowNewestFallback) return null;
+  return _pickNewest(vidbeePaths, modifiedMsByPath);
+}
 
-  matches.sort((a, b) {
-    final am = modifiedMsByPath[a] ?? 0;
-    final bm = modifiedMsByPath[b] ?? 0;
-    return bm.compareTo(am);
-  });
-  return matches.first;
+String? _pickNewest(List<String> paths, Map<String, int>? modifiedMsByPath) {
+  if (paths.isEmpty) return null;
+  if (paths.length == 1 || modifiedMsByPath == null) return paths.first;
+  final sorted = List<String>.from(paths)
+    ..sort((a, b) {
+      final am = modifiedMsByPath[a] ?? 0;
+      final bm = modifiedMsByPath[b] ?? 0;
+      return bm.compareTo(am);
+    });
+  return sorted.first;
 }
 
 /// 标题与文件名主体是否足够相似。
