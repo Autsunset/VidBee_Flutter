@@ -36,21 +36,23 @@ void main() {
         DeviceOrientation.portraitDown,
       ]);
 
-      // 通知初始化失败不能阻塞启动；否则用户会看到「打开即闪退」。
-      try {
-        final notificationService = NotificationService();
-        await notificationService.initialize();
-      } catch (e, stackTrace) {
-        AppLogger.error('通知服务初始化失败，已跳过', e, stackTrace);
-      }
-
       AppLogger.info('VidBee 启动完成');
       runApp(const ProviderScope(child: VidBeeApp()));
+      // 通知通道不影响首屏展示，放到 runApp 之后初始化以缩短冷启动等待。
+      unawaited(_initializeNotificationService());
     },
     (error, stackTrace) {
       AppLogger.error('Zone 未捕获异常', error, stackTrace);
     },
   );
+}
+
+Future<void> _initializeNotificationService() async {
+  try {
+    await NotificationService().initialize();
+  } catch (e, stackTrace) {
+    AppLogger.error('通知服务初始化失败，已跳过', e, stackTrace);
+  }
 }
 
 class VidBeeApp extends ConsumerWidget {
@@ -99,11 +101,14 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const DownloadsPage(),
-    const HistoryPage(),
-    const SettingsPage(),
-  ];
+  final List<Widget?> _pages = [const DownloadsPage(), null, null];
+
+  Widget _createPage(int index) => switch (index) {
+    0 => const DownloadsPage(),
+    1 => const HistoryPage(),
+    2 => const SettingsPage(),
+    _ => const SizedBox.shrink(),
+  };
 
   @override
   void initState() {
@@ -161,11 +166,16 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex],
+      // 已访问页面保留状态与滚动位置；未访问页面仍延迟构建，避免拖慢首屏。
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [for (final page in _pages) page ?? const SizedBox.shrink()],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() {
+            _pages[index] ??= _createPage(index);
             _selectedIndex = index;
           });
         },

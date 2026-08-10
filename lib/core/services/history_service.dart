@@ -13,13 +13,26 @@ class HistoryService {
   final StreamController<List<DownloadTask>> _historyController =
       StreamController.broadcast();
   bool _isInitialized = false;
+  Future<void>? _initializationFuture;
 
   Stream<List<DownloadTask>> get historyStream => _historyController.stream;
 
   /// 初始化历史记录缓存
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  Future<void> initialize() {
+    if (_isInitialized) return Future<void>.value();
+    final currentInitialization = _initializationFuture;
+    if (currentInitialization != null) return currentInitialization;
 
+    final initialization = _initialize();
+    _initializationFuture = initialization;
+    return initialization.whenComplete(() {
+      if (identical(_initializationFuture, initialization)) {
+        _initializationFuture = null;
+      }
+    });
+  }
+
+  Future<void> _initialize() async {
     try {
       final history = await _downloadHistoryDao.getAllDownloadHistory();
       _history

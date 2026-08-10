@@ -130,6 +130,127 @@ void main() {
       expect(history.single.savedFileName, 'VidBee_Clip.mp4');
     },
   );
+
+  test(
+    'returned output path completes task when completion event is lost',
+    () async {
+      final ytDlp = FakeYtDlpService(
+        onStart: (_) => '/storage/emulated/0/Download/VidBee_Result.mp4',
+      );
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+      );
+
+      final added = await service.addTask(
+        url: 'https://example.com/video/result',
+        title: 'Result',
+      );
+
+      await _waitFor(
+        () async => (await dao.getAllDownloadHistory()).isNotEmpty,
+      );
+
+      expect(service.getActiveTasks(), isEmpty);
+      final history = await dao.getAllDownloadHistory();
+      expect(history.single.id, added.id);
+      expect(history.single.status, DownloadStatus.completed);
+      expect(history.single.savedFileName, 'VidBee_Result.mp4');
+      service.dispose();
+    },
+  );
+
+  test(
+    'cancelled event releases slot and starts the next queued task',
+    () async {
+      final ytDlp = FakeYtDlpService();
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+      );
+      service.setMaxConcurrentDownloads(1);
+
+      final first = await service.addTask(
+        url: 'https://example.com/video/first',
+        title: 'First',
+      );
+      final second = await service.addTask(
+        url: 'https://example.com/video/second',
+        title: 'Second',
+      );
+      expect(ytDlp.startedTaskIds, [first.id]);
+
+      eventBus.fire(
+        DownloadStatusChangedEvent(
+          taskId: first.id,
+          status: DownloadStatus.cancelled,
+        ),
+      );
+
+      await _waitFor(() => ytDlp.startedTaskIds.contains(second.id));
+      expect(
+        service.getActiveTasks().map((task) => task.id),
+        contains(second.id),
+      );
+      service.dispose();
+    },
+  );
+
+  test(
+    'duplicate progress callbacks update notification once per percent',
+    () async {
+      final notifications = FakeNotificationService();
+      final service = DownloadService(
+        ytDlpService: FakeYtDlpService(),
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: notifications,
+      );
+
+      final added = await service.addTask(
+        url: 'https://example.com/video/progress',
+        title: 'Progress',
+      );
+      eventBus.fire(
+        DownloadProgressEvent(taskId: added.id, progress: 10.1, eta: 9),
+      );
+      eventBus.fire(
+        DownloadProgressEvent(taskId: added.id, progress: 10.9, eta: 8),
+      );
+      eventBus.fire(
+        DownloadProgressEvent(taskId: added.id, progress: 11.0, eta: 7),
+      );
+
+      await _waitFor(() => notifications.progressUpdates.length == 2);
+      expect(notifications.progressUpdates, [10, 11]);
+      service.dispose();
+    },
+  );
+
+  test(
+    'disabling notifications removes active progress notifications',
+    () async {
+      final notifications = FakeNotificationService();
+      final service = DownloadService(
+        ytDlpService: FakeYtDlpService(),
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: notifications,
+      );
+
+      final added = await service.addTask(
+        url: 'https://example.com/video/notification',
+        title: 'Notification',
+      );
+      service.setNotificationsEnabled(false);
+
+      await _waitFor(() => notifications.cancelledTaskIds.contains(added.id));
+      expect(notifications.cancelledTaskIds, [added.id]);
+      service.dispose();
+    },
+  );
 }
 
 Future<void> _waitFor(FutureOr<bool> Function() condition) async {
@@ -163,6 +284,9 @@ class FakeYtDlpService implements YtDlpService {
 }
 
 class FakeNotificationService implements NotificationService {
+  final List<int> progressUpdates = [];
+  final List<String> cancelledTaskIds = [];
+
   @override
   Future<void> initialize() async {}
 
@@ -186,10 +310,14 @@ class FakeNotificationService implements NotificationService {
     required int progress,
     String? speed,
     String? eta,
-  }) async {}
+  }) async {
+    progressUpdates.add(progress);
+  }
 
   @override
-  Future<void> cancelNotification(String taskId) async {}
+  Future<void> cancelNotification(String taskId) async {
+    cancelledTaskIds.add(taskId);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

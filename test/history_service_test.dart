@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vidbee_flutter/core/database/download_history_dao.dart';
 import 'package:vidbee_flutter/core/models/download_task.dart';
@@ -109,10 +111,26 @@ void main() {
 
     expect(service.getHistory().single.savedFileName, isNull);
   });
+
+  test('concurrent initialize calls share one database read', () async {
+    final gate = Completer<void>();
+    dao.readGate = gate;
+
+    final first = service.initialize();
+    final second = service.initialize();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(dao.readCount, 1);
+    gate.complete();
+    await Future.wait([first, second]);
+    expect(dao.readCount, 1);
+  });
 }
 
 class FakeDownloadHistoryDao implements DownloadHistoryDao {
   final Map<String, DownloadTask> _history = {};
+  Completer<void>? readGate;
+  int readCount = 0;
 
   @override
   Future<int> insertDownloadHistory(DownloadTask task) async {
@@ -122,6 +140,8 @@ class FakeDownloadHistoryDao implements DownloadHistoryDao {
 
   @override
   Future<List<DownloadTask>> getAllDownloadHistory() async {
+    readCount++;
+    await readGate?.future;
     return _history.values.toList().reversed.toList();
   }
 

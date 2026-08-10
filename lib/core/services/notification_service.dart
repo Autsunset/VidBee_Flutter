@@ -12,11 +12,24 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
+  Future<void>? _initializationFuture;
 
   /// 初始化通知服务
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  Future<void> initialize() {
+    if (_isInitialized) return Future<void>.value();
+    final currentInitialization = _initializationFuture;
+    if (currentInitialization != null) return currentInitialization;
 
+    final initialization = _initialize();
+    _initializationFuture = initialization;
+    return initialization.whenComplete(() {
+      if (identical(_initializationFuture, initialization)) {
+        _initializationFuture = null;
+      }
+    });
+  }
+
+  Future<void> _initialize() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosSettings =

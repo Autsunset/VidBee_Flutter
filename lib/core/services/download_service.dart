@@ -2,6 +2,7 @@
 // 管理下载任务队列和状态
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,10 +31,11 @@ class DownloadService {
   final NotificationService _notificationService;
   final Uuid _uuid = const Uuid();
 
-  final List<DownloadTask> _downloadQueue = [];
+  final Queue<DownloadTask> _downloadQueue = ListQueue<DownloadTask>();
   final Map<String, DownloadTask> _activeTasks = {};
   // 下载成功后由 startDownload 返回的真实文件名，按 taskId 暂存，供历史记录使用
   final Map<String, String> _resolvedFileNames = {};
+  final Map<String, int> _lastNotifiedProgress = {};
   int _maxConcurrentDownloads = 3;
   bool _notificationsEnabled = true;
 
@@ -58,6 +60,9 @@ class DownloadService {
   StreamSubscription? _ytdlpErrorSubscription;
 
   bool _isInitialized = false;
+  Future<void>? _initializationFuture;
+  Future<void>? _persistenceFuture;
+  bool _persistenceRequested = false;
   final Set<String> _completionHandledTaskIds = {};
 
   /// 初始化下载服务
@@ -70,9 +75,21 @@ class DownloadService {
   /// 因此把 native 初始化推迟到真正需要时（首次解析 URL / 下载），
   /// 由 `YtDlpService.getVideoInfo`/`startDownload`/`getVersionInfo`
   /// 内部的懒加载触发，保证应用启动流程不再触碰 native 库。
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  Future<void> initialize() {
+    if (_isInitialized) return Future<void>.value();
+    final currentInitialization = _initializationFuture;
+    if (currentInitialization != null) return currentInitialization;
 
+    final initialization = _initialize();
+    _initializationFuture = initialization;
+    return initialization.whenComplete(() {
+      if (identical(_initializationFuture, initialization)) {
+        _initializationFuture = null;
+      }
+    });
+  }
+
+  Future<void> _initialize() async {
     await _loadPreferences();
     await _historyService.initialize();
     await _restoreIncompleteTasks();
@@ -103,7 +120,15 @@ class DownloadService {
 
   /// 更新通知开关（设置变更时由设置页调用）
   void setNotificationsEnabled(bool value) {
+    if (_notificationsEnabled == value) return;
     _notificationsEnabled = value;
+    if (!value) {
+      // 关闭开关时立即移除已有常驻进度通知，而不只是停止后续刷新。
+      for (final taskId in _activeTasks.keys) {
+        unawaited(_cancelNotification(taskId));
+      }
+      _lastNotifiedProgress.clear();
+    }
   }
 
   /// 设置 yt-dlp 事件监听器（直接来自 YtDlpService）
@@ -121,15 +146,13 @@ class DownloadService {
           // 如果下载完成，保存到历史记录并显示完成通知
           if (event.status == DownloadStatus.completed) {
             if (_notificationsEnabled) {
-              _notificationService.showDownloadComplete(
-                taskId: task.id,
-                title: task.title ?? '视频',
-              );
+              unawaited(_showDownloadCompleteNotification(task));
             }
             unawaited(_onTaskComplete(updatedTask));
           } else if (event.status == DownloadStatus.cancelled) {
-            // 取消下载时取消通知
-            _notificationService.cancelNotification(task.id);
+            // 插件可能主动发出取消事件；必须释放并发槽位，不能只关闭通知。
+            unawaited(_cancelNotification(task.id));
+            unawaited(_onTaskComplete(updatedTask));
           }
         }
       },
@@ -149,11 +172,7 @@ class DownloadService {
 
         // 显示错误通知
         if (_notificationsEnabled) {
-          _notificationService.showDownloadError(
-            taskId: task.id,
-            title: task.title ?? '视频',
-            error: event.error,
-          );
+          unawaited(_showDownloadErrorNotification(task, event.error));
         }
 
         unawaited(_onTaskComplete(updatedTask));
@@ -175,17 +194,73 @@ class DownloadService {
         _notifyTaskUpdate(updatedTask);
 
         // 更新下载进度通知
-        if (_notificationsEnabled) {
-          _notificationService.showDownloadProgress(
-            taskId: task.id,
-            title: task.title ?? '正在下载...',
-            progress: event.progress.toInt(),
-            speed: progress.currentSpeed,
-            eta: progress.eta,
+        final notificationProgress = event.progress.clamp(0, 100).toInt();
+        if (_notificationsEnabled &&
+            _lastNotifiedProgress[task.id] != notificationProgress) {
+          // extractor 可能在同一整数百分比内回调数十次；通知栏无需同频刷新。
+          _lastNotifiedProgress[task.id] = notificationProgress;
+          unawaited(
+            _showDownloadProgressNotification(
+              task,
+              notificationProgress,
+              progress,
+            ),
           );
         }
       }
     });
+  }
+
+  Future<void> _showDownloadProgressNotification(
+    DownloadTask task,
+    int progress,
+    DownloadProgress details,
+  ) async {
+    try {
+      await _notificationService.showDownloadProgress(
+        taskId: task.id,
+        title: task.title ?? '正在下载...',
+        progress: progress,
+        speed: details.currentSpeed,
+        eta: details.eta,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error('更新下载进度通知失败', e, stackTrace);
+    }
+  }
+
+  Future<void> _showDownloadCompleteNotification(DownloadTask task) async {
+    try {
+      await _notificationService.showDownloadComplete(
+        taskId: task.id,
+        title: task.title ?? '视频',
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error('显示下载完成通知失败', e, stackTrace);
+    }
+  }
+
+  Future<void> _showDownloadErrorNotification(
+    DownloadTask task,
+    String error,
+  ) async {
+    try {
+      await _notificationService.showDownloadError(
+        taskId: task.id,
+        title: task.title ?? '视频',
+        error: error,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error('显示下载失败通知失败', e, stackTrace);
+    }
+  }
+
+  Future<void> _cancelNotification(String taskId) async {
+    try {
+      await _notificationService.cancelNotification(taskId);
+    } catch (e, stackTrace) {
+      AppLogger.error('取消下载通知失败', e, stackTrace);
+    }
   }
 
   /// 通知任务更新
@@ -199,6 +274,7 @@ class DownloadService {
     _trimRetainedIds(_completionHandledTaskIds);
 
     _activeTasks.remove(task.id);
+    _lastNotifiedProgress.remove(task.id);
 
     // 保存到历史记录
     await _saveToHistory(task);
@@ -210,9 +286,15 @@ class DownloadService {
 
   /// 保存到历史记录
   Future<void> _saveToHistory(DownloadTask task) async {
-    // 完成事件往往先于 startDownload 返回；先等一小段时间拿真实路径。
-    // 绝不把 yt-dlp 未展开的模板路径（VidBee_%(title)s.%(ext)s）写入历史。
-    final usablePath = await _awaitResolvedPath(task.id);
+    // 只有成功任务才可能等待 startDownload 回填真实路径。错误/取消任务没有
+    // 输出文件，若也轮询会让每个失败任务额外占用并发槽约 1 秒。
+    final String? usablePath;
+    if (task.status == DownloadStatus.completed) {
+      usablePath = await _awaitResolvedPath(task.id);
+    } else {
+      usablePath = _peekResolvedPath(task.id);
+      _resolvedFileNames.remove(task.id);
+    }
     final fileSize = await _resolveFileSize(usablePath, task.fileSize);
     final completedAt = DateTime.now().millisecondsSinceEpoch;
 
@@ -273,7 +355,7 @@ class DownloadService {
   void _processQueue() {
     while (_activeTasks.length < _maxConcurrentDownloads &&
         _downloadQueue.isNotEmpty) {
-      final task = _downloadQueue.removeAt(0);
+      final task = _downloadQueue.removeFirst();
       unawaited(_startTask(task));
     }
     unawaited(_persistIncompleteTasks());
@@ -330,6 +412,26 @@ class DownloadService {
         }
         _resolvedFileNames[task.id] = result;
         _trimResolvedFileNames();
+
+        // 成功返回真实文件是比事件流更可靠的终态信号。部分设备偶发丢失
+        // completed 事件时，主动收尾，避免任务永久占用并发槽位。
+        final currentTask = _activeTasks[task.id];
+        if (currentTask != null &&
+            currentTask.status != DownloadStatus.completed &&
+            currentTask.status != DownloadStatus.cancelled &&
+            currentTask.status != DownloadStatus.error) {
+          final completedTask = currentTask.copyWith(
+            status: DownloadStatus.completed,
+            savedFileName: savedFileName,
+            downloadPath: result,
+          );
+          _activeTasks[task.id] = completedTask;
+          _notifyTaskUpdate(completedTask);
+          if (_notificationsEnabled) {
+            unawaited(_showDownloadCompleteNotification(completedTask));
+          }
+          await _onTaskComplete(completedTask);
+        }
         await _updateHistorySavedFile(task.id, result, savedFileName);
         await _persistIncompleteTasks();
       }
@@ -470,8 +572,14 @@ class DownloadService {
     final task = _activeTasks[taskId];
     if (task != null) {
       final cancelled = await _ytDlpService.cancelDownload(taskId);
-      if (cancelled) {
-        final updatedTask = task.copyWith(status: DownloadStatus.cancelled);
+      if (cancelled && !_completionHandledTaskIds.contains(taskId)) {
+        // cancelDownload 可能同步触发 cancelled 事件；重新读取当前任务，避免
+        // 事件已收尾后又把旧任务塞回 activeTasks。
+        final currentTask = _activeTasks[taskId];
+        if (currentTask == null) return true;
+        final updatedTask = currentTask.copyWith(
+          status: DownloadStatus.cancelled,
+        );
         _activeTasks[taskId] = updatedTask;
         _notifyTaskUpdate(updatedTask);
         await _onTaskComplete(updatedTask);
@@ -480,10 +588,16 @@ class DownloadService {
     }
 
     // 从队列中移除
-    final queueIndex = _downloadQueue.indexWhere((t) => t.id == taskId);
-    if (queueIndex != -1) {
-      final task = _downloadQueue.removeAt(queueIndex);
-      final updatedTask = task.copyWith(status: DownloadStatus.cancelled);
+    DownloadTask? queuedTask;
+    for (final task in _downloadQueue) {
+      if (task.id == taskId) {
+        queuedTask = task;
+        break;
+      }
+    }
+    if (queuedTask != null) {
+      _downloadQueue.remove(queuedTask);
+      final updatedTask = queuedTask.copyWith(status: DownloadStatus.cancelled);
       _notifyTaskUpdate(updatedTask);
       await _persistIncompleteTasks();
       return true;
@@ -523,9 +637,7 @@ class DownloadService {
       for (final item in decoded) {
         if (item is! Map) continue;
         try {
-          final task = DownloadTask.fromJson(
-            Map<String, dynamic>.from(item),
-          );
+          final task = DownloadTask.fromJson(Map<String, dynamic>.from(item));
           switch (task.status) {
             case DownloadStatus.pending:
               restoredQueue.add(task);
@@ -567,6 +679,30 @@ class DownloadService {
 
   /// 持久化未完成任务，防止进程被杀后队列静默丢失。
   Future<void> _persistIncompleteTasks() async {
+    _persistenceRequested = true;
+    final currentPersistence = _persistenceFuture;
+    if (currentPersistence != null) return currentPersistence;
+
+    final persistence = _drainPersistenceRequests();
+    _persistenceFuture = persistence;
+    try {
+      await persistence;
+    } finally {
+      if (identical(_persistenceFuture, persistence)) {
+        _persistenceFuture = null;
+      }
+    }
+  }
+
+  /// 串行合并短时间内的写请求，避免状态事件并发覆盖较新的任务快照。
+  Future<void> _drainPersistenceRequests() async {
+    while (_persistenceRequested) {
+      _persistenceRequested = false;
+      await _writeIncompleteTasksSnapshot();
+    }
+  }
+
+  Future<void> _writeIncompleteTasksSnapshot() async {
     final incompleteTasks = [
       ..._downloadQueue,
       ..._activeTasks.values.where(
