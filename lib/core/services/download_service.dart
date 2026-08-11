@@ -64,6 +64,8 @@ class DownloadService {
   Future<void>? _persistenceFuture;
   bool _persistenceRequested = false;
   final Set<String> _completionHandledTaskIds = {};
+  final Map<String, DownloadStatus> _handledTerminalStatuses = {};
+  final Map<String, DownloadTask> _terminalTaskOverrides = {};
 
   /// 初始化下载服务
   ///
@@ -272,16 +274,19 @@ class DownloadService {
   Future<void> _onTaskComplete(DownloadTask task) async {
     if (!_completionHandledTaskIds.add(task.id)) return;
     _trimRetainedIds(_completionHandledTaskIds);
+    _handledTerminalStatuses[task.id] = task.status;
+    _trimRetainedTaskMap(_handledTerminalStatuses);
 
     _activeTasks.remove(task.id);
     _lastNotifiedProgress.remove(task.id);
 
+    // 终态已经释放并发槽位，立即调度下一项。成功任务仍可能等待最多约 1 秒
+    // 回填真实路径；这类历史元数据工作不应让下载队列空转。
+    _processQueue();
+
     // 保存到历史记录
     await _saveToHistory(task);
     await _persistIncompleteTasks();
-
-    // 启动下一个任务
-    _processQueue();
   }
 
   /// 保存到历史记录
@@ -295,18 +300,27 @@ class DownloadService {
       usablePath = _peekResolvedPath(task.id);
       _resolvedFileNames.remove(task.id);
     }
-    final fileSize = await _resolveFileSize(usablePath, task.fileSize);
+    // startDownload 的最终返回值可能晚于 completed 事件。如果最终未返回
+    // 可用文件，使用失败终态覆盖先到达的成功事件，避免历史记录误报成功。
+    final effectiveTask = _terminalTaskOverrides[task.id] ?? task;
+    final effectivePath = effectiveTask.status == DownloadStatus.completed
+        ? usablePath
+        : null;
+    final fileSize = await _resolveFileSize(
+      effectivePath,
+      effectiveTask.fileSize,
+    );
     final completedAt = DateTime.now().millisecondsSinceEpoch;
 
-    final enrichedTask = task.copyWith(
+    final enrichedTask = effectiveTask.copyWith(
       completedAt: completedAt,
       // duration/fileSize 保留任务里已有的有效值；文件 size 优先用落盘实测
       fileSize: fileSize,
-      savedFileName: usablePath != null
-          ? (task.savedFileName ?? fileNameFromPath(usablePath))
-          : task.savedFileName,
+      savedFileName: effectivePath != null
+          ? (effectiveTask.savedFileName ?? fileNameFromPath(effectivePath))
+          : effectiveTask.savedFileName,
       // 仅在解析到真实文件路径时覆盖；避免把目录路径当最终文件路径展示
-      downloadPath: usablePath ?? task.downloadPath,
+      downloadPath: effectivePath ?? effectiveTask.downloadPath,
     );
     await _historyService.addToHistory(enrichedTask);
   }
@@ -314,6 +328,7 @@ class DownloadService {
   /// 等待 startDownload 回填真实路径；超时则返回当前缓存（可能为 null）。
   Future<String?> _awaitResolvedPath(String taskId) async {
     for (var i = 0; i < _resolvePathWaitAttempts; i++) {
+      if (_terminalTaskOverrides.containsKey(taskId)) return null;
       final path = _peekResolvedPath(taskId);
       if (path != null) {
         _resolvedFileNames.remove(taskId);
@@ -374,31 +389,11 @@ class DownloadService {
     try {
       final result = await _ytDlpService.startDownload(updatedTask);
       if (result == null) {
-        final currentTask = _activeTasks[task.id];
-        if (currentTask != null &&
-            currentTask.status == DownloadStatus.downloading) {
-          final failedTask = currentTask.copyWith(
-            status: DownloadStatus.error,
-            error: currentTask.error ?? '下载进程结束但没有返回输出文件',
-          );
-          _activeTasks[task.id] = failedTask;
-          _notifyTaskUpdate(failedTask);
-          await _onTaskComplete(failedTask);
-        }
+        await _failTaskWithoutOutput(updatedTask, '下载进程结束但没有返回输出文件');
       } else if (isYtDlpTemplatePath(result)) {
         // 防御：底层不应再返回模板路径；若仍返回则视为失败，避免污染历史。
         AppLogger.error('下载返回未展开的模板路径，忽略: $result');
-        final currentTask = _activeTasks[task.id];
-        if (currentTask != null &&
-            currentTask.status == DownloadStatus.downloading) {
-          final failedTask = currentTask.copyWith(
-            status: DownloadStatus.error,
-            error: '下载完成但未能解析真实文件名',
-          );
-          _activeTasks[task.id] = failedTask;
-          _notifyTaskUpdate(failedTask);
-          await _onTaskComplete(failedTask);
-        }
+        await _failTaskWithoutOutput(updatedTask, '下载完成但未能解析真实文件名');
       } else {
         // startDownload 返回了真实文件路径。完成事件可能已经（或尚未）触发，
         // 因此既写入活动任务，也尝试更新已落库的历史记录。
@@ -448,8 +443,63 @@ class DownloadService {
         _activeTasks[task.id] = failedTask;
         _notifyTaskUpdate(failedTask);
         await _onTaskComplete(failedTask);
+      } else {
+        await _reconcilePrematureCompletion(
+          updatedTask.copyWith(
+            status: DownloadStatus.error,
+            error: updatedTask.error ?? '下载执行异常: $e',
+          ),
+        );
       }
     }
+  }
+
+  Future<void> _failTaskWithoutOutput(
+    DownloadTask startedTask,
+    String error,
+  ) async {
+    final currentTask = _activeTasks[startedTask.id];
+    if (currentTask != null &&
+        currentTask.status == DownloadStatus.downloading) {
+      final failedTask = currentTask.copyWith(
+        status: DownloadStatus.error,
+        error: currentTask.error ?? error,
+      );
+      _activeTasks[startedTask.id] = failedTask;
+      _notifyTaskUpdate(failedTask);
+      await _onTaskComplete(failedTask);
+      return;
+    }
+
+    await _reconcilePrematureCompletion(
+      startedTask.copyWith(status: DownloadStatus.error, error: error),
+    );
+  }
+
+  /// completed 事件可能早于 startDownload 的最终结果。仅校正这种提前成功，
+  /// 不能把用户取消或底层已报告的错误状态覆盖成另一种错误。
+  Future<void> _reconcilePrematureCompletion(DownloadTask failedTask) async {
+    if (_handledTerminalStatuses[failedTask.id] != DownloadStatus.completed) {
+      return;
+    }
+
+    _handledTerminalStatuses[failedTask.id] = DownloadStatus.error;
+    _terminalTaskOverrides[failedTask.id] = failedTask;
+    _trimRetainedTaskMap(_terminalTaskOverrides);
+    _notifyTaskUpdate(failedTask);
+    if (_notificationsEnabled) {
+      unawaited(
+        _showDownloadErrorNotification(
+          failedTask,
+          failedTask.error ?? '下载未生成可用文件',
+        ),
+      );
+    }
+
+    // insertOnConflictUpdate 负责覆盖可能已写入的成功记录；若首次成功写入仍在
+    // 等待路径，它也会读取上面的 override，从而不会在稍后反向覆盖失败状态。
+    await _saveToHistory(failedTask);
+    await _persistIncompleteTasks();
   }
 
   Future<void> _updateHistorySavedFile(
@@ -482,6 +532,12 @@ class DownloadService {
   void _trimResolvedFileNames() {
     while (_resolvedFileNames.length > _maxRetainedTaskIds) {
       _resolvedFileNames.remove(_resolvedFileNames.keys.first);
+    }
+  }
+
+  void _trimRetainedTaskMap(Map<String, Object?> entries) {
+    while (entries.length > _maxRetainedTaskIds) {
+      entries.remove(entries.keys.first);
     }
   }
 

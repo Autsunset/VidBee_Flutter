@@ -11,14 +11,14 @@
 
 ---
 
-### What's New in v1.0.10+11
+### What's New in v2026.08.11.1
 
-- Added persistent download history backed by Drift and SQLite.
-- Improved download task restoration, completion de-duplication, and saved file name handling.
-- Added retry support for failed or cancelled history items.
-- Added open/share actions for completed history items.
-- Refined cookie, login, settings, and download workflows for better stability.
-- Expanded focused tests for download recovery and retry behavior.
+- Corrected premature completion events when no usable output file is produced.
+- Prevented concurrent downloads from associating another task's newest file.
+- Released completed queue slots immediately instead of waiting for path metadata.
+- Rejected truncated in-app update APKs and removed partial downloads safely.
+- Hardened WebView login and settings initialization against disposed-page callbacks.
+- Expanded regression coverage for download lifecycle and update integrity.
 
 ---
 

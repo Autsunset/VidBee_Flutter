@@ -27,7 +27,7 @@ class WebViewLoginPage extends StatefulWidget {
 }
 
 class _WebViewLoginPageState extends State<WebViewLoginPage> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   final CookieService _cookieService = CookieService();
   bool _isLoading = true;
   String _statusMessage = '正在加载登录页面...';
@@ -52,11 +52,13 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
     } catch (e) {
       AppLogger.error('清理 WebView Cookie 失败', e);
     }
+    if (!mounted) return;
     _initWebView();
   }
 
   void _initWebView() {
-    _controller = WebViewController()
+    if (!mounted) return;
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
         widget.userAgent ??
@@ -65,12 +67,14 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
+            if (!mounted) return;
             setState(() {
               _isLoading = true;
               _statusMessage = '正在加载...';
             });
           },
           onPageFinished: (String url) async {
+            if (!mounted) return;
             setState(() {
               _isLoading = false;
               _statusMessage = '请登录您的 ${widget.title} 账号，登录后点击"检查登录"';
@@ -120,6 +124,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
             }
           },
           onNavigationRequest: (NavigationRequest request) {
+            if (!mounted) return NavigationDecision.navigate;
             // 如果跳转到指定的成功 URL，说明登录成功
             if (widget.successUrl != null &&
                 (request.url == widget.successUrl ||
@@ -132,6 +137,10 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
         ),
       )
       ..loadRequest(Uri.parse(widget.loginUrl));
+
+    setState(() {
+      _controller = controller;
+    });
   }
 
   /// 保存 Cookie
@@ -169,9 +178,11 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
 
   /// 登录成功处理
   Future<void> _onLoginSuccess() async {
+    final controller = _controller;
+    if (!mounted || controller == null) return;
     try {
       // 获取所有 Cookie
-      final cookies = await _controller.runJavaScriptReturningResult(
+      final cookies = await controller.runJavaScriptReturningResult(
         'document.cookie',
       );
 
@@ -188,36 +199,41 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
         title: Text('登录 ${widget.title}'),
         actions: [
           TextButton(
-            onPressed: () async {
-              try {
-                // 获取当前 Cookie
-                final cookies = await _controller.runJavaScriptReturningResult(
-                  'document.cookie',
-                );
-                final cookieString = cookies.toString();
+            onPressed: _controller == null
+                ? null
+                : () async {
+                    final controller = _controller;
+                    if (controller == null) return;
+                    try {
+                      // 获取当前 Cookie
+                      final cookies = await controller
+                          .runJavaScriptReturningResult('document.cookie');
+                      final cookieString = cookies.toString();
 
-                AppLogger.debug('手动保存 Cookie: 已获取 Cookie');
+                      AppLogger.debug('手动保存 Cookie: 已获取 Cookie');
 
-                if (cookieString.isNotEmpty) {
-                  // 直接保存，不管有没有检测到登录状态
-                  _loginDetected = true;
-                  await _saveCookies(cookieString);
-                } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('未检测到 Cookie，请先在页面中登录')),
-                    );
-                  }
-                }
-              } catch (e) {
-                AppLogger.error('获取 Cookie 失败', e);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('获取 Cookie 失败: $e')));
-                }
-              }
-            },
+                      if (cookieString.isNotEmpty) {
+                        // 直接保存，不管有没有检测到登录状态
+                        _loginDetected = true;
+                        await _saveCookies(cookieString);
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('未检测到 Cookie，请先在页面中登录'),
+                            ),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      AppLogger.error('获取 Cookie 失败', e);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('获取 Cookie 失败: $e')),
+                        );
+                      }
+                    }
+                  },
             child: const Text('保存 Cookie'),
           ),
         ],
@@ -271,7 +287,7 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
                         _isLoading = true;
                         _statusMessage = '正在重新加载...';
                       });
-                      _controller.reload();
+                      _controller?.reload();
                     },
                     icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('重试'),
@@ -281,7 +297,11 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
           ),
 
           // WebView
-          Expanded(child: WebViewWidget(controller: _controller)),
+          Expanded(
+            child: _controller == null
+                ? const Center(child: CircularProgressIndicator())
+                : WebViewWidget(controller: _controller!),
+          ),
         ],
       ),
     );

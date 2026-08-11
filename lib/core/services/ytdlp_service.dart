@@ -365,7 +365,7 @@ class YtDlpService {
 
       if (result.status == OperationStatus.success) {
         // 优先采用插件返回的真实输出路径；若其为空或仍是模板，则在下载目录中
-        // 按 VidBee_<标题> 安全化匹配，失败再回退最近的 VidBee_* 文件。
+        // 按 VidBee_<标题> 安全化匹配。
         // 切勿把含 %(title)s 的模板路径写回任务/历史。
         final actualPath = await _resolveOutputPath(
           result.outputPath,
@@ -378,13 +378,8 @@ class YtDlpService {
             'pluginOutput=${result.outputPath}, title=${task.title}, '
             'dir=$downloadPath',
           );
-          // 仍尝试扫描目录中最新的 VidBee 文件，尽量让相册能看到
-          final fallback = await _findDownloadedFileByTitle(downloadPath, null);
-          if (fallback != null) {
-            AppLogger.debug('回退扫描最新 VidBee 文件: $fallback');
-            await MediaScanner.scanFile(fallback);
-            return fallback;
-          }
+          // 默认允许并发下载，不能用目录中“最新文件”兜底：它可能属于
+          // 另一个任务，进而把错误文件写入当前任务历史并误报成功。
           return null;
         }
         AppLogger.debug('下载成功: $actualPath');
@@ -457,6 +452,7 @@ class YtDlpService {
         candidatePaths: candidatePaths,
         title: title,
         modifiedMsByPath: modifiedMsByPath,
+        allowNewestFallback: false,
       );
       if (matched == null) {
         AppLogger.debug(

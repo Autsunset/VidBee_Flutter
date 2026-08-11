@@ -163,6 +163,48 @@ void main() {
   );
 
   test(
+    'missing output path corrects a premature completion event to error',
+    () async {
+      final ytDlp = FakeYtDlpService(
+        onStart: (task) async {
+          eventBus.fire(
+            DownloadStatusChangedEvent(
+              taskId: task.id,
+              status: DownloadStatus.completed,
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+          return null;
+        },
+      );
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+      );
+
+      final added = await service.addTask(
+        url: 'https://example.com/video/missing-output',
+        title: 'Missing output',
+      );
+
+      await _waitFor(() async {
+        final history = await dao.getAllDownloadHistory();
+        return history.isNotEmpty &&
+            history.single.status == DownloadStatus.error;
+      });
+
+      final history = await dao.getAllDownloadHistory();
+      expect(history, hasLength(1));
+      expect(history.single.id, added.id);
+      expect(history.single.status, DownloadStatus.error);
+      expect(history.single.error, '下载进程结束但没有返回输出文件');
+      service.dispose();
+    },
+  );
+
+  test(
     'cancelled event releases slot and starts the next queued task',
     () async {
       final ytDlp = FakeYtDlpService();
@@ -196,6 +238,43 @@ void main() {
         service.getActiveTasks().map((task) => task.id),
         contains(second.id),
       );
+      service.dispose();
+    },
+  );
+
+  test(
+    'completion releases slot before waiting for output path metadata',
+    () async {
+      final ytDlp = FakeYtDlpService(
+        onStart: (_) => Completer<String?>().future,
+      );
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: FakeNotificationService(),
+      );
+      service.setMaxConcurrentDownloads(1);
+
+      final first = await service.addTask(
+        url: 'https://example.com/video/first-completed',
+        title: 'First completed',
+      );
+      await _waitFor(() => ytDlp.startedTaskIds.contains(first.id));
+      final second = await service.addTask(
+        url: 'https://example.com/video/second-after-completion',
+        title: 'Second after completion',
+      );
+      expect(ytDlp.startedTaskIds, [first.id]);
+
+      eventBus.fire(
+        DownloadStatusChangedEvent(
+          taskId: first.id,
+          status: DownloadStatus.completed,
+        ),
+      );
+
+      await _waitFor(() => ytDlp.startedTaskIds.contains(second.id));
+      expect(ytDlp.startedTaskIds, [first.id, second.id]);
       service.dispose();
     },
   );
@@ -264,7 +343,7 @@ Future<void> _waitFor(FutureOr<bool> Function() condition) async {
 class FakeYtDlpService implements YtDlpService {
   FakeYtDlpService({this.onStart});
 
-  final String? Function(DownloadTask task)? onStart;
+  final FutureOr<String?> Function(DownloadTask task)? onStart;
   final List<String> startedTaskIds = [];
 
   @override
@@ -273,7 +352,9 @@ class FakeYtDlpService implements YtDlpService {
   @override
   Future<String?> startDownload(DownloadTask task, {String? customUA}) async {
     startedTaskIds.add(task.id);
-    return onStart?.call(task) ?? Completer<String?>().future;
+    final callback = onStart;
+    if (callback == null) return Completer<String?>().future;
+    return callback(task);
   }
 
   @override

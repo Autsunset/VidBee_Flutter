@@ -87,6 +87,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 加载保存的设置
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _concurrentDownloads = prefs.getInt('max_concurrent_downloads') ?? 3;
       _enableNotification = prefs.getBool('enable_notification') ?? true;
@@ -414,15 +415,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _initializeDownloadPath() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final savedPath = prefs.getString('download_path');
+    final String downloadPath;
     if (savedPath != null && savedPath.isNotEmpty) {
-      // 如果有保存的路径，使用保存的路径
-      ref.read(downloadPathProvider.notifier).state = savedPath;
+      downloadPath = savedPath;
     } else {
-      // 否则使用默认路径
-      ref.read(downloadPathProvider.notifier).state =
-          await PermissionHelper.getDefaultDownloadPath();
+      downloadPath = await PermissionHelper.getDefaultDownloadPath();
+      if (!mounted) return;
     }
+    ref.read(downloadPathProvider.notifier).state = downloadPath;
   }
 
   Future<void> _loadCookies() async {

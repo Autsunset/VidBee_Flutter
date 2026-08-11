@@ -48,13 +48,19 @@ class AppReleaseInfo {
 }
 
 class AppUpdateService {
-  AppUpdateService({http.Client? client}) : _client = client ?? http.Client();
+  AppUpdateService({
+    http.Client? client,
+    Future<Directory> Function()? temporaryDirectoryProvider,
+  }) : _client = client ?? http.Client(),
+       _temporaryDirectoryProvider =
+           temporaryDirectoryProvider ?? getTemporaryDirectory;
 
   static const _channel = MethodChannel('com.vidbee.app_update');
   static const _latestReleaseApi =
       'https://api.github.com/repos/Autsunset/VidBee_Flutter/releases/latest';
 
   final http.Client _client;
+  final Future<Directory> Function() _temporaryDirectoryProvider;
 
   Future<AppReleaseInfo> checkForUpdate() async {
     final packageInfo = await PackageInfo.fromPlatform();
@@ -114,7 +120,7 @@ class AppUpdateService {
       throw StateError('No compatible APK asset found');
     }
 
-    final directory = await getTemporaryDirectory();
+    final directory = await _temporaryDirectoryProvider();
     final file = File('${directory.path}/${asset.name}');
     if (await file.exists()) {
       await file.delete();
@@ -129,7 +135,7 @@ class AppUpdateService {
       );
     }
 
-    final totalBytes = response.contentLength;
+    final totalBytes = asset.size > 0 ? asset.size : response.contentLength;
     var receivedBytes = 0;
     final sink = file.openWrite();
     try {
@@ -138,14 +144,25 @@ class AppUpdateService {
         sink.add(chunk);
         onProgress?.call(receivedBytes, totalBytes);
       }
-    } catch (e) {
+      await sink.flush();
       await sink.close();
+      if (totalBytes != null && receivedBytes != totalBytes) {
+        throw HttpException(
+          'APK download incomplete: received $receivedBytes of $totalBytes bytes',
+          uri: Uri.parse(asset.downloadUrl),
+        );
+      }
+    } catch (_) {
+      try {
+        await sink.close();
+      } catch (_) {
+        // 保留原始下载异常，并继续清理半成品。
+      }
       if (await file.exists()) {
         await file.delete();
       }
       rethrow;
     }
-    await sink.close();
 
     AppLogger.info('应用更新安装包下载完成: ${file.path}');
     return file;

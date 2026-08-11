@@ -6,7 +6,9 @@ void main() {
     test('识别未展开模板', () {
       expect(isYtDlpTemplatePath('VidBee_%(title)s.%(ext)s'), isTrue);
       expect(
-        isYtDlpTemplatePath('/storage/emulated/0/Download/VidBee_%(title)s.%(ext)s'),
+        isYtDlpTemplatePath(
+          '/storage/emulated/0/Download/VidBee_%(title)s.%(ext)s',
+        ),
         isTrue,
       );
       expect(isYtDlpTemplatePath(null), isFalse);
@@ -56,9 +58,7 @@ void main() {
 
     test('标题被 yt-dlp 截断时仍可匹配公共前缀', () {
       final matched = matchDownloadedFileByTitle(
-        candidatePaths: [
-          '/d/VidBee_这是一段很长的视频标题会被截断.mp4',
-        ],
+        candidatePaths: ['/d/VidBee_这是一段很长的视频标题会被截断.mp4'],
         title: '这是一段很长的视频标题会被截断并且后面还有更多文字',
       );
       expect(matched, '/d/VidBee_这是一段很长的视频标题会被截断.mp4');
@@ -66,10 +66,7 @@ void main() {
 
     test('多匹配时取修改时间最新的', () {
       final matched = matchDownloadedFileByTitle(
-        candidatePaths: [
-          '/d/VidBee_clip.mp4',
-          '/d/VidBee_clip.webm',
-        ],
+        candidatePaths: ['/d/VidBee_clip.mp4', '/d/VidBee_clip.webm'],
         title: 'clip',
         modifiedMsByPath: {
           '/d/VidBee_clip.mp4': 100,
@@ -87,9 +84,8 @@ void main() {
           '/d/VidBee_实际落盘名.mp4',
         ],
         title: '完全不同的标题XYZ',
-        modifiedMsByPath: {
-          '/d/VidBee_实际落盘名.mp4': 999,
-        },
+        modifiedMsByPath: {'/d/VidBee_实际落盘名.mp4': 999},
+        allowNewestFallback: true,
       );
       expect(matched, '/d/VidBee_实际落盘名.mp4');
     });
@@ -108,15 +104,10 @@ void main() {
     test('空标题时回退最新 VidBee 文件', () {
       expect(
         matchDownloadedFileByTitle(
-          candidatePaths: [
-            '/d/VidBee_old.mp4',
-            '/d/VidBee_new.mp4',
-          ],
+          candidatePaths: ['/d/VidBee_old.mp4', '/d/VidBee_new.mp4'],
           title: null,
-          modifiedMsByPath: {
-            '/d/VidBee_old.mp4': 1,
-            '/d/VidBee_new.mp4': 2,
-          },
+          modifiedMsByPath: {'/d/VidBee_old.mp4': 1, '/d/VidBee_new.mp4': 2},
+          allowNewestFallback: true,
         ),
         '/d/VidBee_new.mp4',
       );
@@ -125,10 +116,7 @@ void main() {
 
   group('fileNameFromPath / stripFileExtension', () {
     test('提取文件名与去扩展名', () {
-      expect(
-        fileNameFromPath(r'C:\Download\VidBee_a.mp4'),
-        'VidBee_a.mp4',
-      );
+      expect(fileNameFromPath(r'C:\Download\VidBee_a.mp4'), 'VidBee_a.mp4');
       expect(stripFileExtension('VidBee_a.b.mp4'), 'VidBee_a.b');
       expect(stripFileExtension('noext'), 'noext');
     });

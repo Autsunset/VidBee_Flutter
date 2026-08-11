@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:vidbee_flutter/core/services/app_update_service.dart';
 
 void main() {
@@ -41,5 +44,65 @@ void main() {
 
       expect(asset?.name, 'app-release.apk');
     });
+
+    test('rejects a truncated APK and removes the partial file', () async {
+      final temporaryDirectory = await Directory.systemTemp.createTemp(
+        'vidbee_update_test_',
+      );
+      final client = _StreamClient(
+        (_) async => http.StreamedResponse(
+          Stream.value(<int>[1, 2, 3]),
+          HttpStatus.ok,
+          contentLength: 5,
+        ),
+      );
+      final service = AppUpdateService(
+        client: client,
+        temporaryDirectoryProvider: () async => temporaryDirectory,
+      );
+      const asset = AppReleaseAsset(
+        name: 'app-release.apk',
+        downloadUrl: 'https://example.com/app-release.apk',
+        size: 5,
+      );
+      const release = AppReleaseInfo(
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.1',
+        releaseName: '1.0.1',
+        releaseUrl: 'https://example.com/release',
+        isUpdateAvailable: true,
+        asset: asset,
+      );
+      final partialFile = File('${temporaryDirectory.path}/${asset.name}');
+
+      try {
+        await expectLater(
+          service.downloadReleaseAsset(release),
+          throwsA(
+            isA<HttpException>().having(
+              (error) => error.message,
+              'message',
+              contains('received 3 of 5 bytes'),
+            ),
+          ),
+        );
+        expect(await partialFile.exists(), isFalse);
+      } finally {
+        service.dispose();
+        if (await temporaryDirectory.exists()) {
+          await temporaryDirectory.delete(recursive: true);
+        }
+      }
+    });
   });
+}
+
+class _StreamClient extends http.BaseClient {
+  _StreamClient(this._send);
+
+  final Future<http.StreamedResponse> Function(http.BaseRequest request) _send;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _send(request);
 }

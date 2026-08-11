@@ -44,14 +44,14 @@ String sanitizeFilenameComponent(String input) {
 ///
 /// 匹配顺序：
 /// 1. 标题安全化后与文件名主体比对
-/// 2. 若标题匹配失败，回退到最近修改的 `VidBee_*` 文件
-///    （与 7.11.1 前“最新文件”策略对齐，保证单任务下载可扫描进相册）
+/// 2. 仅当调用方明确设置 [allowNewestFallback] 时，才回退到最近修改的
+///    `VidBee_*` 文件。并发下载场景不得启用该回退。
 String? matchDownloadedFileByTitle({
   required List<String> candidatePaths,
   required String? title,
   String filePrefix = 'VidBee_',
   Map<String, int>? modifiedMsByPath,
-  bool allowNewestFallback = true,
+  bool allowNewestFallback = false,
 }) {
   if (candidatePaths.isEmpty) return null;
 

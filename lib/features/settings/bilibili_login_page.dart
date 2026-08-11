@@ -34,11 +34,13 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       // 检查 SharedPreferences 和 Cookie 文件路径
       final hasCookie = await _cookieService.hasCookie('bilibili.com');
       final cookieFilePath = await _cookieService.getCookieFilePath();
+      if (!mounted) return;
 
       if (hasCookie && cookieFilePath != null && cookieFilePath.isNotEmpty) {
         // 检查文件是否存在
         final file = File(cookieFilePath);
         if (await file.exists()) {
+          if (!mounted) return;
           setState(() {
             _hasExistingCookie = true;
             _statusMessage = '已保存 Bilibili Cookie，如需重新登录请点击下方按钮';
@@ -49,15 +51,16 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       }
 
       // 没有有效 Cookie，进入登录流程
-      _clearWebViewCookiesAndInit();
+      await _clearWebViewCookiesAndInit();
     } catch (e) {
       AppLogger.error('检查 Cookie 失败', e);
-      _clearWebViewCookiesAndInit();
+      if (mounted) await _clearWebViewCookiesAndInit();
     }
   }
 
   /// 先清理 WebView Cookie，再初始化 WebView
   Future<void> _clearWebViewCookiesAndInit() async {
+    if (!mounted) return;
     setState(() {
       _statusMessage = '正在清理旧 Cookie...';
     });
@@ -68,10 +71,12 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
     } catch (e) {
       AppLogger.error('清理 WebView Cookie 失败', e);
     }
+    if (!mounted) return;
     _initWebView();
   }
 
   void _initWebView() {
+    if (!mounted) return;
     // 桌面端 UA，Bilibili 必须使用桌面端 UA 才能正确提取 Cookie
     const desktopUA =
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -82,12 +87,14 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
+            if (!mounted) return;
             setState(() {
               _isLoading = true;
               _statusMessage = '正在加载...';
             });
           },
           onPageFinished: (String url) async {
+            if (!mounted) return;
             setState(() {
               _isLoading = false;
               _statusMessage = '请登录您的 Bilibili 账号';
@@ -97,6 +104,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
             await _checkLoginStatus();
           },
           onNavigationRequest: (NavigationRequest request) {
+            if (!mounted) return NavigationDecision.navigate;
             // 如果跳转到首页，说明登录成功
             if (request.url == 'https://www.bilibili.com/' ||
                 request.url == 'https://www.bilibili.com') {
@@ -123,6 +131,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
       final cookies = await _controller!.runJavaScriptReturningResult(
         'document.cookie',
       );
+      if (!mounted) return;
 
       final cookieString = cookies.toString();
 
@@ -257,13 +266,14 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
 
   /// 登录成功处理
   Future<void> _onLoginSuccess() async {
-    if (_controller == null) return;
+    if (!mounted || _controller == null) return;
 
     try {
       // 获取所有 Cookie
       final cookies = await _controller!.runJavaScriptReturningResult(
         'document.cookie',
       );
+      if (!mounted) return;
 
       await _saveCookies(cookies.toString());
     } catch (e) {
@@ -275,6 +285,7 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
   Future<void> _clearAndReLogin() async {
     // 删除 Cookie 文件
     final cookieFilePath = await _cookieService.getCookieFilePath();
+    if (!mounted) return;
     if (cookieFilePath != null && cookieFilePath.isNotEmpty) {
       try {
         final file = File(cookieFilePath);
@@ -289,12 +300,13 @@ class _BilibiliLoginPageState extends State<BilibiliLoginPage> {
     // 清除保存的 Cookie 和文件路径
     await _cookieService.removeCookie('bilibili.com');
     await _cookieService.setCookieFilePath('');
+    if (!mounted) return;
 
     setState(() {
       _hasExistingCookie = false;
       _isLoading = true;
     });
-    _clearWebViewCookiesAndInit();
+    await _clearWebViewCookiesAndInit();
   }
 
   @override
