@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/download_task.dart';
 import '../models/video_info.dart';
+import 'background_download_service.dart';
 import 'ytdlp_service.dart';
 import 'history_service.dart';
 import 'notification_service.dart';
@@ -22,13 +23,17 @@ class DownloadService {
     required YtDlpService ytDlpService,
     required HistoryService historyService,
     required NotificationService notificationService,
+    BackgroundDownloadService? backgroundDownloadService,
   }) : _ytDlpService = ytDlpService,
        _historyService = historyService,
-       _notificationService = notificationService;
+       _notificationService = notificationService,
+       _backgroundDownloadService =
+           backgroundDownloadService ?? BackgroundDownloadService();
 
   final YtDlpService _ytDlpService;
   final HistoryService _historyService;
   final NotificationService _notificationService;
+  final BackgroundDownloadService _backgroundDownloadService;
   final Uuid _uuid = const Uuid();
 
   final Queue<DownloadTask> _downloadQueue = ListQueue<DownloadTask>();
@@ -58,6 +63,8 @@ class DownloadService {
   StreamSubscription? _ytdlpProgressSubscription;
   StreamSubscription? _ytdlpStatusSubscription;
   StreamSubscription? _ytdlpErrorSubscription;
+  StreamSubscription<void>? _backgroundTimeoutSubscription;
+  bool _queuePaused = false;
 
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
@@ -66,6 +73,7 @@ class DownloadService {
   final Set<String> _completionHandledTaskIds = {};
   final Map<String, DownloadStatus> _handledTerminalStatuses = {};
   final Map<String, DownloadTask> _terminalTaskOverrides = {};
+  final Map<String, Future<void>> _taskCompletions = {};
 
   /// 初始化下载服务
   ///
@@ -96,6 +104,9 @@ class DownloadService {
     await _historyService.initialize();
     await _restoreIncompleteTasks();
     _setupYtDlpEventListeners();
+    _backgroundTimeoutSubscription = _backgroundDownloadService.timeouts.listen(
+      (_) => unawaited(_onBackgroundTimeout()),
+    );
     _isInitialized = true;
     // 不在启动时调用 _processQueue()：它会启动恢复出的 pending 任务，
     // 进而触发 native 初始化。若存在遗留 pending 任务且 native 初始化在该机型
@@ -271,7 +282,13 @@ class DownloadService {
   }
 
   /// 任务完成处理
-  Future<void> _onTaskComplete(DownloadTask task) async {
+  Future<void> _onTaskComplete(DownloadTask task) {
+    return _taskCompletions[task.id] ??= _finishTask(task).whenComplete(() {
+      _taskCompletions.remove(task.id);
+    });
+  }
+
+  Future<void> _finishTask(DownloadTask task) async {
     if (!_completionHandledTaskIds.add(task.id)) return;
     _trimRetainedIds(_completionHandledTaskIds);
     _handledTerminalStatuses[task.id] = task.status;
@@ -368,6 +385,7 @@ class DownloadService {
 
   /// 处理队列
   void _processQueue() {
+    if (_queuePaused) return;
     while (_activeTasks.length < _maxConcurrentDownloads &&
         _downloadQueue.isNotEmpty) {
       final task = _downloadQueue.removeFirst();
@@ -384,9 +402,14 @@ class DownloadService {
     );
     _activeTasks[task.id] = updatedTask;
     _notifyTaskUpdate(updatedTask);
-    await _persistIncompleteTasks();
 
     try {
+      // Acquire before native initialization or disk I/O. Notifications alone
+      // do not keep Android downloads or ffmpeg running in the background.
+      await _backgroundDownloadService.acquire(task.id);
+      await _persistIncompleteTasks();
+      // Cancellation can arrive while the foreground service is starting.
+      if (!_activeTasks.containsKey(task.id)) return;
       final result = await _ytDlpService.startDownload(updatedTask);
       if (result == null) {
         await _failTaskWithoutOutput(updatedTask, '下载进程结束但没有返回输出文件');
@@ -451,6 +474,46 @@ class DownloadService {
           ),
         );
       }
+    } finally {
+      // A completed event can precede output resolution and media scanning.
+      // Keep protection until the actual operation (including merging) returns.
+      try {
+        await _taskCompletions[task.id];
+      } catch (e, stackTrace) {
+        AppLogger.error('保存后台下载结果失败', e, stackTrace);
+      }
+      try {
+        await _backgroundDownloadService.release(task.id);
+      } catch (e, stackTrace) {
+        AppLogger.error('停止后台下载服务失败', e, stackTrace);
+      }
+    }
+  }
+
+  Future<void> _onBackgroundTimeout() async {
+    // Android 15+ limits dataSync foreground time. Do not restart the queued
+    // work from the background after the OS has exhausted that allowance.
+    _queuePaused = true;
+    final tasks = _activeTasks.values.toList();
+    for (final task in tasks) {
+      final failedTask = task.copyWith(
+        status: DownloadStatus.error,
+        error: '系统后台下载时限已到，请回到应用后重试',
+      );
+      _notifyTaskUpdate(failedTask);
+      unawaited(_onTaskComplete(failedTask));
+      if (_notificationsEnabled) {
+        unawaited(
+          _showDownloadErrorNotification(failedTask, failedTask.error!),
+        );
+      }
+    }
+    for (final task in tasks) {
+      try {
+        await _ytDlpService.cancelDownload(task.id);
+      } catch (e, stackTrace) {
+        AppLogger.error('后台下载超时后停止任务失败', e, stackTrace);
+      }
     }
   }
 
@@ -460,7 +523,9 @@ class DownloadService {
   ) async {
     final currentTask = _activeTasks[startedTask.id];
     if (currentTask != null &&
-        currentTask.status == DownloadStatus.downloading) {
+        (currentTask.status == DownloadStatus.pending ||
+            currentTask.status == DownloadStatus.downloading ||
+            currentTask.status == DownloadStatus.processing)) {
       final failedTask = currentTask.copyWith(
         status: DownloadStatus.error,
         error: currentTask.error ?? error,
@@ -573,6 +638,7 @@ class DownloadService {
     _downloadQueue.add(task);
     _notifyTaskUpdate(task);
     await _persistIncompleteTasks();
+    _queuePaused = false;
     _processQueue();
 
     return task;
@@ -605,6 +671,7 @@ class DownloadService {
     _downloadQueue.add(task);
     _notifyTaskUpdate(task);
     await _persistIncompleteTasks();
+    _queuePaused = false;
     _processQueue();
 
     return task;
@@ -786,5 +853,6 @@ class DownloadService {
     _ytdlpProgressSubscription?.cancel();
     _ytdlpStatusSubscription?.cancel();
     _ytdlpErrorSubscription?.cancel();
+    _backgroundTimeoutSubscription?.cancel();
   }
 }

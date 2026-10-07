@@ -1,0 +1,5 @@
+<resources>
+    <string name="background_download_channel">Background downloads</string>
+    <string name="background_download_title">VidBee is downloading</string>
+    <string name="background_download_text">Downloading and merging media. You can leave the app.</string>
+</resources>

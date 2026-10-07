@@ -1,0 +1,5 @@
+<resources>
+    <string name="background_download_channel">后台下载</string>
+    <string name="background_download_title">VidBee 正在后台下载</string>
+    <string name="background_download_text">正在下载和合并媒体，可以切换到其他应用。</string>
+</resources>

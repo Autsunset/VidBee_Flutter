@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vidbee_flutter/core/database/download_history_dao.dart';
 import 'package:vidbee_flutter/core/models/download_task.dart';
 import 'package:vidbee_flutter/core/models/video_info.dart';
+import 'package:vidbee_flutter/core/services/background_download_service.dart';
 import 'package:vidbee_flutter/core/services/download_service.dart';
 import 'package:vidbee_flutter/core/services/history_service.dart';
 import 'package:vidbee_flutter/core/services/notification_service.dart';
@@ -13,6 +14,7 @@ import 'package:vidbee_flutter/core/services/ytdlp_service.dart';
 import 'package:vidbee_flutter/core/utils/event_bus.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   const incompleteTasksKey = 'incomplete_download_tasks';
 
   setUp(() {
@@ -330,6 +332,330 @@ void main() {
       service.dispose();
     },
   );
+
+  test(
+    'starts background protection before invoking the download engine',
+    () async {
+      final startup = Completer<void>();
+      final output = Completer<String?>();
+      final background = FakeBackgroundDownloadService(startup: startup.future);
+      final ytDlp = FakeYtDlpService(onStart: (_) => output.future);
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final added = await service.addTask(
+        url: 'https://example.com/video/start',
+      );
+      await _waitFor(() => background.acquired.contains(added.id));
+      expect(ytDlp.startedTaskIds, isEmpty);
+
+      startup.complete();
+      await _waitFor(() => ytDlp.startedTaskIds.contains(added.id));
+      expect(background.released, isEmpty);
+      output.complete('/downloads/VidBee_Start.mp4');
+      await _waitFor(() => background.released.contains(added.id));
+    },
+  );
+
+  test(
+    'keeps protection at 100 percent, through merging and early completion',
+    () async {
+      final output = Completer<String?>();
+      final background = FakeBackgroundDownloadService();
+      final service = DownloadService(
+        ytDlpService: FakeYtDlpService(onStart: (_) => output.future),
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final added = await service.addTask(
+        url: 'https://example.com/video/merge',
+      );
+      await _waitFor(() => background.acquired.contains(added.id));
+      eventBus.fire(
+        DownloadProgressEvent(taskId: added.id, progress: 100, eta: 0),
+      );
+      eventBus.fire(
+        DownloadStatusChangedEvent(
+          taskId: added.id,
+          status: DownloadStatus.processing,
+        ),
+      );
+      await _waitFor(
+        () =>
+            service.getActiveTasks().single.status == DownloadStatus.processing,
+      );
+      expect(background.released, isEmpty);
+      eventBus.fire(
+        DownloadStatusChangedEvent(
+          taskId: added.id,
+          status: DownloadStatus.completed,
+        ),
+      );
+      await _waitFor(() => service.getActiveTasks().isEmpty);
+      expect(background.released, isEmpty);
+      output.complete('/downloads/VidBee_Merged.mp4');
+      await _waitFor(() => background.released.contains(added.id));
+    },
+  );
+
+  test(
+    'queue handoff acquires the next task before releasing the previous one',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'max_concurrent_downloads': 1,
+        'enable_notification': false,
+      });
+      final outputs = [Completer<String?>(), Completer<String?>()];
+      var index = 0;
+      final background = FakeBackgroundDownloadService();
+      final ytDlp = FakeYtDlpService(onStart: (_) => outputs[index++].future);
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final first = await service.addTask(
+        url: 'https://example.com/video/first',
+      );
+      final second = await service.addTask(
+        url: 'https://example.com/video/second',
+      );
+      await _waitFor(() => ytDlp.startedTaskIds.contains(first.id));
+      expect(background.acquired, [first.id]);
+      outputs[0].complete('/downloads/VidBee_First.mp4');
+      await _waitFor(() => background.released.contains(first.id));
+      expect(background.events.take(3), [
+        'acquire:${first.id}',
+        'acquire:${second.id}',
+        'release:${first.id}',
+      ]);
+      // The user's optional progress-notification setting must not disable FGS.
+      service.setNotificationsEnabled(false);
+      expect(background.released, [first.id]);
+      outputs[1].complete('/downloads/VidBee_Second.mp4');
+      await _waitFor(() => background.released.contains(second.id));
+    },
+  );
+
+  test('keeps protection until a slow history write finishes', () async {
+    final historyWrite = Completer<void>();
+    final output = Completer<String?>();
+    var savingHistory = false;
+    final dao = FakeDownloadHistoryDao(
+      beforeInsert: () async {
+        savingHistory = true;
+        await historyWrite.future;
+      },
+    );
+    final background = FakeBackgroundDownloadService();
+    final service = DownloadService(
+      ytDlpService: FakeYtDlpService(
+        onStart: (task) {
+          eventBus.fire(
+            DownloadStatusChangedEvent(
+              taskId: task.id,
+              status: DownloadStatus.completed,
+            ),
+          );
+          return output.future;
+        },
+      ),
+      historyService: HistoryService(dao),
+      notificationService: FakeNotificationService(),
+      backgroundDownloadService: background,
+    );
+    addTearDown(service.dispose);
+    final added = await service.addTask(
+      url: 'https://example.com/video/history',
+    );
+    await _waitFor(() => background.acquired.contains(added.id));
+    output.complete('/downloads/VidBee_History.mp4');
+    await _waitFor(() => savingHistory);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(background.released, isEmpty);
+    historyWrite.complete();
+    await _waitFor(() => background.released.contains(added.id));
+    expect(
+      (await dao.getAllDownloadHistory()).single.status,
+      DownloadStatus.completed,
+    );
+  });
+
+  test('download exceptions release background protection', () async {
+    final background = FakeBackgroundDownloadService();
+    final dao = FakeDownloadHistoryDao();
+    final service = DownloadService(
+      ytDlpService: FakeYtDlpService(
+        onStart: (_) => throw StateError('failed'),
+      ),
+      historyService: HistoryService(dao),
+      notificationService: FakeNotificationService(),
+      backgroundDownloadService: background,
+    );
+    addTearDown(service.dispose);
+    final added = await service.addTask(url: 'https://example.com/video/error');
+    await _waitFor(() => background.released.contains(added.id));
+    expect(
+      (await dao.getAllDownloadHistory()).single.status,
+      DownloadStatus.error,
+    );
+  });
+
+  test(
+    'missing output during processing fails and releases protection',
+    () async {
+      final output = Completer<String?>();
+      final background = FakeBackgroundDownloadService();
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: FakeYtDlpService(onStart: (_) => output.future),
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final added = await service.addTask(
+        url: 'https://example.com/video/merge-error',
+      );
+      eventBus.fire(
+        DownloadStatusChangedEvent(
+          taskId: added.id,
+          status: DownloadStatus.processing,
+        ),
+      );
+      await _waitFor(
+        () =>
+            service.getActiveTasks().single.status == DownloadStatus.processing,
+      );
+      output.complete(null);
+      await _waitFor(() => background.released.contains(added.id));
+      expect(service.getActiveTasks(), isEmpty);
+      expect(
+        (await dao.getAllDownloadHistory()).single.status,
+        DownloadStatus.error,
+      );
+    },
+  );
+
+  test(
+    'failed foreground startup does not launch an unprotected download',
+    () async {
+      final background = FakeBackgroundDownloadService(failStart: true);
+      final ytDlp = FakeYtDlpService();
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final added = await service.addTask(
+        url: 'https://example.com/video/start-error',
+      );
+      await _waitFor(() => background.released.contains(added.id));
+      expect(ytDlp.startedTaskIds, isEmpty);
+      expect(
+        (await dao.getAllDownloadHistory()).single.status,
+        DownloadStatus.error,
+      );
+    },
+  );
+
+  test(
+    'cancellation keeps protection until the native process exits',
+    () async {
+      final output = Completer<String?>();
+      final background = FakeBackgroundDownloadService();
+      final ytDlp = FakeYtDlpService(onStart: (_) => output.future);
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(FakeDownloadHistoryDao()),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final added = await service.addTask(
+        url: 'https://example.com/video/cancel',
+      );
+      await _waitFor(() => ytDlp.startedTaskIds.contains(added.id));
+      expect(await service.cancelTask(added.id), isTrue);
+      expect(background.released, isEmpty);
+      output.complete(null);
+      await _waitFor(() => background.released.contains(added.id));
+    },
+  );
+
+  test(
+    'system timeout fails active work and leaves queued work pending',
+    () async {
+      SharedPreferences.setMockInitialValues({'max_concurrent_downloads': 1});
+      final output = Completer<String?>();
+      final background = FakeBackgroundDownloadService();
+      final ytDlp = FakeYtDlpService(onStart: (_) => output.future);
+      final dao = FakeDownloadHistoryDao();
+      final service = DownloadService(
+        ytDlpService: ytDlp,
+        historyService: HistoryService(dao),
+        notificationService: FakeNotificationService(),
+        backgroundDownloadService: background,
+      );
+      addTearDown(service.dispose);
+      final first = await service.addTask(
+        url: 'https://example.com/video/timeout',
+      );
+      final second = await service.addTask(
+        url: 'https://example.com/video/queued',
+      );
+      await _waitFor(() => ytDlp.startedTaskIds.contains(first.id));
+      background.timeoutController.add(null);
+      await _waitFor(() => service.getActiveTasks().isEmpty);
+      expect(ytDlp.startedTaskIds, [first.id]);
+      expect(service.getQueuedTasks().single.id, second.id);
+      output.complete(null);
+      await _waitFor(() => background.released.contains(first.id));
+      expect(
+        (await dao.getAllDownloadHistory()).single.status,
+        DownloadStatus.error,
+      );
+    },
+  );
+}
+
+class FakeBackgroundDownloadService implements BackgroundDownloadService {
+  FakeBackgroundDownloadService({this.startup, this.failStart = false});
+
+  final Future<void>? startup;
+  final bool failStart;
+  final acquired = <String>[];
+  final released = <String>[];
+  final events = <String>[];
+  final timeoutController = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get timeouts => timeoutController.stream;
+
+  @override
+  Future<void> acquire(String taskId) async {
+    acquired.add(taskId);
+    events.add('acquire:$taskId');
+    if (failStart) throw StateError('Cannot start foreground service');
+    await startup;
+  }
+
+  @override
+  Future<void> release(String taskId) async {
+    released.add(taskId);
+    events.add('release:$taskId');
+  }
 }
 
 Future<void> _waitFor(FutureOr<bool> Function() condition) async {
@@ -405,10 +731,14 @@ class FakeNotificationService implements NotificationService {
 }
 
 class FakeDownloadHistoryDao implements DownloadHistoryDao {
+  FakeDownloadHistoryDao({this.beforeInsert});
+
+  final Future<void> Function()? beforeInsert;
   final Map<String, DownloadTask> _history = {};
 
   @override
   Future<int> insertDownloadHistory(DownloadTask task) async {
+    await beforeInsert?.call();
     _history[task.id] = task;
     return 1;
   }
