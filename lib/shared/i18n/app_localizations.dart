@@ -122,6 +122,24 @@ class AppLocalizations {
   String get unsubscribe => _translate('unsubscribe');
   String get notificationSettings => _translate('notificationSettings');
   String get appearance => _translate('appearance');
+  String get interfaceStyle => _translate('interfaceStyle');
+  String get liquidGlass => _translate('liquidGlass');
+  String get classicStyle => _translate('classicStyle');
+  String get liquidGlassDescription => _translate('liquidGlassDescription');
+  String get classicStyleDescription => _translate('classicStyleDescription');
+  String get appearanceHint => _translate('appearanceHint');
+  String get downloadWorkspace => _translate('downloadWorkspace');
+  String get downloadWorkspaceDescription =>
+      _translate('downloadWorkspaceDescription');
+  String get readyToDownload => _translate('readyToDownload');
+  String get readyToDownloadDescription =>
+      _translate('readyToDownloadDescription');
+  String get addDownload => _translate('addDownload');
+  String get activeDownloads => _translate('activeDownloads');
+  String get savedLocally => _translate('savedLocally');
+  String get historyDescription => _translate('historyDescription');
+  String get settingsDescription => _translate('settingsDescription');
+  String get supportedSites => _translate('supportedSites');
   String get behavior => _translate('behavior');
   String get network => _translate('network');
   String get advanced => _translate('advanced');

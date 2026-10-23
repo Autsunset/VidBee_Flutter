@@ -105,18 +105,22 @@ class _ImportCookieCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.file_open_outlined, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  loc.importCookieFile,
-                  style: theme.textTheme.titleSmall,
-                ),
-                const Spacer(),
-                InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () async {
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Row(
+                  children: [
+                    const Icon(Icons.file_open_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        loc.importCookieFile,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                    ),
+                  ],
+                );
+                final help = TextButton.icon(
+                  onPressed: () async {
                     final uri = Uri.parse(
                       'https://github.com/Autsunset/VidBee_Flutter/blob/main/COOKIES_GUIDE.md',
                     );
@@ -127,31 +131,30 @@ class _ImportCookieCard extends StatelessWidget {
                       );
                     }
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.help_outline,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          loc.cookieHelp,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
+                  icon: const Icon(Icons.help_outline, size: 16),
+                  label: Text(loc.cookieHelp),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: theme.textTheme.bodySmall,
                   ),
-                ),
-              ],
+                );
+                if (_stackCookieControls(context, constraints)) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      title,
+                      Align(alignment: Alignment.centerRight, child: help),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: 8),
+                    Flexible(child: help),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 4),
             Text(
@@ -193,17 +196,14 @@ class _ImportCookieCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
+            _CookieActions(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onImport,
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(loc.importCookieFile),
-                  ),
+                FilledButton.icon(
+                  onPressed: onImport,
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(loc.importCookieFile),
                 ),
-                if (cookieFilePath != null) ...[
-                  const SizedBox(width: 12),
+                if (cookieFilePath != null)
                   OutlinedButton.icon(
                     onPressed: onClear,
                     icon: const Icon(Icons.delete_outline),
@@ -212,7 +212,6 @@ class _ImportCookieCard extends StatelessWidget {
                       foregroundColor: theme.colorScheme.error,
                     ),
                   ),
-                ],
               ],
             ),
           ],
@@ -253,67 +252,118 @@ class _SiteLoginCard extends StatelessWidget {
               children: [
                 const Icon(Icons.login, size: 20),
                 const SizedBox(width: 8),
-                Text(title, style: theme.textTheme.titleSmall),
+                Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            _CookieActions(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onLogin,
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(loc.login),
-                  ),
+                FilledButton.icon(
+                  onPressed: onLogin,
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(loc.login),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit),
-                    label: Text(loc.manualCookieInput),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit),
+                  label: Text(loc.manualCookieInput),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  hasCookie
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  size: 16,
-                  color: hasCookie
-                      ? Colors.green
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    hasCookie ? loc.success : loc.loginRequired,
-                    style: theme.textTheme.bodySmall?.copyWith(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final status = Row(
+                  children: [
+                    Icon(
+                      hasCookie
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 16,
                       color: hasCookie
                           ? Colors.green
                           : theme.colorScheme.onSurfaceVariant,
                     ),
-                  ),
-                ),
-                if (hasCookie)
-                  TextButton.icon(
-                    onPressed: onRemove,
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    label: Text(loc.clear),
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.error,
-                      visualDensity: VisualDensity.compact,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        hasCookie ? loc.success : loc.loginRequired,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: hasCookie
+                              ? Colors.green
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
+                  ],
+                );
+                if (!hasCookie) return status;
+                final remove = TextButton.icon(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: Text(loc.clear),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    visualDensity: VisualDensity.compact,
                   ),
-              ],
+                );
+                if (_stackCookieControls(context, constraints)) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      status,
+                      Align(alignment: Alignment.centerRight, child: remove),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: status),
+                    Flexible(child: remove),
+                  ],
+                );
+              },
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+bool _stackCookieControls(BuildContext context, BoxConstraints constraints) =>
+    constraints.maxWidth < 440 ||
+    MediaQuery.textScalerOf(context).scale(14) > 20;
+
+class _CookieActions extends StatelessWidget {
+  const _CookieActions({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (_stackCookieControls(context, constraints)) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                if (index > 0) const SizedBox(height: 12),
+                children[index],
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              if (index > 0) const SizedBox(width: 12),
+              Expanded(child: children[index]),
+            ],
+          ],
+        );
+      },
     );
   }
 }

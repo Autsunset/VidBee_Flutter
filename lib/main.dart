@@ -7,6 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'shared/constants/app_constants.dart';
 import 'shared/i18n/app_localizations.dart';
+import 'shared/theme/app_theme.dart';
+import 'shared/widgets/glass_navigation_bar.dart';
+import 'shared/widgets/glass_widgets.dart';
+import 'core/providers/appearance_provider.dart';
 import 'core/providers/service_providers.dart';
 import 'core/services/services.dart';
 import 'core/utils/app_logger.dart';
@@ -36,8 +40,15 @@ void main() {
         DeviceOrientation.portraitDown,
       ]);
 
+      final appearance = AppThemeStyleNotifier();
+      await appearance.ready;
       AppLogger.info('VidBee 启动完成');
-      runApp(const ProviderScope(child: VidBeeApp()));
+      runApp(
+        ProviderScope(
+          overrides: [appThemeStyleProvider.overrideWith((ref) => appearance)],
+          child: const VidBeeApp(),
+        ),
+      );
       // 通知通道不影响首屏展示，放到 runApp 之后初始化以缩短冷启动等待。
       unawaited(_initializeNotificationService());
     },
@@ -61,27 +72,14 @@ class VidBeeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final themeStyle = ref.watch(appThemeStyleProvider);
     final languageCode = ref.watch(languageProvider);
-
-    const primaryColor = Color(0xFFF9B61B);
 
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          brightness: Brightness.light,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.build(brightness: Brightness.light, style: themeStyle),
+      darkTheme: AppTheme.build(brightness: Brightness.dark, style: themeStyle),
       themeMode: themeMode,
       locale: Locale(languageCode),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -155,52 +153,145 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
+    final isGlass = AppTheme.isLiquidGlass(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppConstants.appName),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddUrlDialog(context),
+    // Keep the page subtree in the same slot when switching styles so downloads,
+    // visited tabs and their scroll positions are not reinitialized.
+    return GlassBackdrop(
+      enabled: isGlass,
+      child: Scaffold(
+        backgroundColor: isGlass ? Colors.transparent : null,
+        extendBody: isGlass,
+        appBar: AppBar(
+          backgroundColor: isGlass ? Colors.transparent : null,
+          systemOverlayStyle: isGlass
+              ? (Theme.of(context).brightness == Brightness.dark
+                        ? SystemUiOverlayStyle.light
+                        : SystemUiOverlayStyle.dark)
+                    .copyWith(statusBarColor: Colors.transparent)
+              : null,
+          toolbarHeight: isGlass ? 76 : null,
+          titleSpacing: isGlass ? 24 : null,
+          title: isGlass
+              ? const _GlassBrand()
+              : const Text(AppConstants.appName),
+          actions: [
+            if (isGlass)
+              Padding(
+                padding: const EdgeInsets.only(right: 20),
+                child: GlassSurface(
+                  borderRadius: 24,
+                  blur: 12,
+                  child: IconButton(
+                    tooltip: loc.addUrl,
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () => _showAddUrlDialog(context),
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                tooltip: loc.addUrl,
+                icon: const Icon(Icons.add),
+                onPressed: () => _showAddUrlDialog(context),
+              ),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isGlass ? 960 : double.infinity,
+            ),
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: [
+                for (final page in _pages) page ?? const SizedBox.shrink(),
+              ],
+            ),
           ),
-        ],
-      ),
-      // 已访问页面保留状态与滚动位置；未访问页面仍延迟构建，避免拖慢首屏。
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [for (final page in _pages) page ?? const SizedBox.shrink()],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _pages[index] ??= _createPage(index);
-            _selectedIndex = index;
-          });
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.download_outlined),
-            selectedIcon: const Icon(Icons.download),
-            label: loc.download,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.history_outlined),
-            selectedIcon: const Icon(Icons.history),
-            label: loc.history,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
-            label: loc.settings,
-          ),
-        ],
+        ),
+        bottomNavigationBar: isGlass
+            ? GlassNavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _selectPage,
+              )
+            : NavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _selectPage,
+                destinations: [
+                  NavigationDestination(
+                    icon: const Icon(Icons.download_outlined),
+                    selectedIcon: const Icon(Icons.download),
+                    label: loc.download,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.history_outlined),
+                    selectedIcon: const Icon(Icons.history),
+                    label: loc.history,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.settings_outlined),
+                    selectedIcon: const Icon(Icons.settings),
+                    label: loc.settings,
+                  ),
+                ],
+              ),
       ),
     );
   }
 
+  void _selectPage(int index) {
+    setState(() {
+      _pages[index] ??= _createPage(index);
+      _selectedIndex = index;
+    });
+  }
+
   void _showAddUrlDialog(BuildContext context) {
     showDialog(context: context, builder: (context) => const AddUrlDialog());
+  }
+}
+
+class _GlassBrand extends StatelessWidget {
+  const _GlassBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFDA79), Color(0xFFF9B61B)],
+            ),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: const Color(0xFFFFE6A6)),
+          ),
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            size: 29,
+            color: Color(0xFF3C2B08),
+          ),
+        ),
+        const SizedBox(width: 11),
+        Flexible(
+          child: Text(
+            'VidBee',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontSize: 23,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

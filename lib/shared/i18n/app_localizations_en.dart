@@ -87,6 +87,26 @@ class AppLocalizationsEn {
     'unsubscribe': 'Unsubscribe',
     'notificationSettings': 'Notification Settings',
     'appearance': 'Appearance',
+    'interfaceStyle': 'Interface style',
+    'liquidGlass': 'Liquid Glass',
+    'classicStyle': 'Classic',
+    'liquidGlassDescription': 'Luminous layers, softer surfaces',
+    'classicStyleDescription': 'The familiar original interface',
+    'appearanceHint':
+        'Switch instantly. Light and dark modes stay independent.',
+    'downloadWorkspace': 'Your download studio',
+    'downloadWorkspaceDescription':
+        'Keep your favorite videos and audio close.',
+    'readyToDownload': 'Ready when you are',
+    'readyToDownloadDescription':
+        'Paste a video link, choose the quality, and make it yours.',
+    'addDownload': 'Add download',
+    'activeDownloads': 'Download tasks',
+    'savedLocally': 'Local archive',
+    'historyDescription':
+        'Revisit your saves and find your downloaded content.',
+    'settingsDescription': 'Make VidBee feel like your own.',
+    'supportedSites': 'Supported sites',
     'behavior': 'Behavior',
     'network': 'Network',
     'advanced': 'Advanced',

@@ -17,6 +17,10 @@ import '../../core/services/cookie_service.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../shared/i18n/app_localizations.dart';
+import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/glass_widgets.dart';
+import '../../shared/widgets/workspace_widgets.dart';
+import 'appearance_settings_section.dart';
 import 'bilibili_login_page.dart';
 import 'cookie_settings_section.dart';
 import 'logs_page.dart';
@@ -31,11 +35,11 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
+  final _scrollController = ScrollController();
   int _concurrentDownloads = 3;
   bool _enableNotification = true;
   String _videoQuality = '1080p';
   String _audioQuality = '3';
-  ThemeMode _themeMode = ThemeMode.system;
   String _language = '简体中文';
   String _customUA = '';
   final CookieService _cookieService = CookieService();
@@ -62,11 +66,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     super.initState();
     _loadCookies();
     _loadCookieFilePath();
-    _themeMode = ref.read(themeModeProvider);
     _initializeDownloadPath();
     _loadVersionInfo();
     _loadAppVersion();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAppVersion() async {
@@ -716,188 +725,229 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final downloadPath = ref.watch(downloadPathProvider);
+    final themeMode = ref.watch(themeModeProvider);
     final loc = AppLocalizations.of(context)!;
 
+    final children = <Widget>[
+      // 下载设置
+      SettingsSectionHeader(loc.downloadSettings),
+      ListTile(
+        leading: const Icon(Icons.folder_outlined),
+        title: Text(loc.downloadPath),
+        subtitle: Text(downloadPath),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _selectDownloadPath,
+      ),
+      ListTile(
+        leading: const Icon(Icons.download_done_outlined),
+        title: Text(loc.concurrentDownloads),
+        subtitle: Text('$_concurrentDownloads'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showConcurrentDownloadsDialog(context),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.notifications_outlined),
+        title: Text(loc.enableNotification),
+        value: _enableNotification,
+        onChanged: (value) {
+          setState(() {
+            _enableNotification = value;
+          });
+          _saveSettings();
+          ref.read(downloadServiceProvider).setNotificationsEnabled(value);
+        },
+      ),
+
+      // 视频格式默认设置
+      const Divider(),
+      SettingsSectionHeader(loc.defaultSettings),
+      ListTile(
+        leading: const Icon(Icons.video_library_outlined),
+        title: Text(loc.videoQuality),
+        subtitle: Text(_getQualityLabel(context, _videoQuality)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showVideoQualityDialog(context),
+      ),
+      ListTile(
+        leading: const Icon(Icons.audiotrack_outlined),
+        title: Text(loc.audioQuality),
+        subtitle: Text(_getAudioQualityLabel(context, _audioQuality)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showAudioQualityDialog(context),
+      ),
+
+      // 外观设置
+      const Divider(),
+      SettingsSectionHeader(loc.appearance),
+      const AppearanceSettingsSection(),
+      ListTile(
+        leading: const Icon(Icons.language_outlined),
+        title: Text(loc.language),
+        subtitle: Text(_language),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showLanguageDialog(context),
+      ),
+      ListTile(
+        leading: const Icon(Icons.dark_mode_outlined),
+        title: Text(loc.themeMode),
+        subtitle: Text(_getThemeLabel(context, themeMode)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showThemeDialog(context),
+      ),
+
+      // 权限管理
+      const Divider(),
+      SettingsSectionHeader(loc.permissionManagement),
+      ListTile(
+        leading: const Icon(Icons.storage_outlined),
+        title: Text(loc.storagePermission),
+        subtitle: Text(loc.storagePermission),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _requestStoragePermission,
+      ),
+      ListTile(
+        leading: const Icon(Icons.notifications_active_outlined),
+        title: Text(loc.notificationSettings),
+        subtitle: Text(loc.notificationSettings),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _requestNotificationPermission,
+      ),
+
+      // Cookie 管理
+      const Divider(),
+      SettingsSectionHeader(loc.cookieManagement),
+      CookieSettingsSection(
+        loc: loc,
+        cookies: _cookies,
+        cookieFilePath: _cookieFilePath,
+        onImportCookieFile: _importCookieFile,
+        onClearCookieFile: _clearCookieFile,
+        onLoginBilibili: () => _loginBilibili(context),
+        onLoginYouTube: () => _loginYouTube(context),
+        onEditBilibiliCookie: () => _showCookieDialog(context, 'bilibili.com'),
+        onEditYouTubeCookie: () => _showCookieDialog(context, 'youtube.com'),
+        onRemoveBilibiliCookie: () => _removeSingleCookie('bilibili.com'),
+        onRemoveYouTubeCookie: () => _removeSingleCookie('youtube.com'),
+        onAddOtherCookies: () => _showAddCookieDialog(context),
+        onClearAllCookies: () => _showClearCookiesDialog(context),
+      ),
+
+      // 高级
+      const Divider(),
+      SettingsSectionHeader(loc.advanced),
+      ListTile(
+        leading: const Icon(Icons.article_outlined),
+        title: Text(loc.logs),
+        subtitle: Text(loc.logsSubtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (context) => const LogsPage())),
+      ),
+      ListTile(
+        leading: _isUpdating
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.update_outlined),
+        title: Text(loc.updateYtDlp),
+        subtitle: Text(
+          _versionInfo.isEmpty
+              ? loc.updateYtDlp
+              : '${loc.version}: ${_versionInfo['yt-dlp']?.replaceFirst('yt-dlp ', '') ?? 'Unknown'}',
+        ),
+        trailing: _isUpdating ? null : const Icon(Icons.chevron_right),
+        onTap: _isUpdating ? null : _updateYtDlp,
+      ),
+      ListTile(
+        leading: _isCheckingAppUpdate || _isDownloadingAppUpdate
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.system_update_alt_outlined),
+        title: Text(loc.checkForUpdates),
+        subtitle: Text(_buildAppUpdateSubtitle(loc)),
+        trailing: _isCheckingAppUpdate || _isDownloadingAppUpdate
+            ? null
+            : const Icon(Icons.chevron_right),
+        onTap: _isCheckingAppUpdate || _isDownloadingAppUpdate
+            ? null
+            : _checkForAppUpdate,
+      ),
+      ListTile(
+        leading: const Icon(Icons.delete_sweep_outlined),
+        title: Text(loc.clearCache),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showClearCacheDialog(context),
+      ),
+      ListTile(
+        leading: const Icon(Icons.code),
+        title: Text(loc.customUA),
+        subtitle: Text(
+          _customUA.isEmpty
+              ? loc.systemDefault
+              : _customUA.length > 30
+              ? '${_customUA.substring(0, 30)}...'
+              : _customUA,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showCustomUADialog(context),
+      ),
+
+      // 关于
+      const Divider(),
+      SettingsSectionHeader(loc.about),
+      ListTile(
+        leading: const Icon(Icons.info_outlined),
+        title: Text('${loc.about} VidBee_Flutter'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _showAboutDialog(context),
+      ),
+    ];
+
+    if (!AppTheme.isLiquidGlass(context)) {
+      return ListView(controller: _scrollController, children: children);
+    }
+
+    final sections = <List<Widget>>[[]];
+    for (final child in children) {
+      if (child is Divider) {
+        sections.add([]);
+      } else {
+        sections.last.add(child);
+      }
+    }
+    final appearanceSection = sections.firstWhere(
+      (section) =>
+          section.first is SettingsSectionHeader &&
+          (section.first as SettingsSectionHeader).title == loc.appearance,
+    );
+    sections.remove(appearanceSection);
+    sections.insert(0, appearanceSection);
+
     return ListView(
+      controller: _scrollController,
+      padding: EdgeInsets.only(
+        bottom: 24 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
-        // 下载设置
-        SettingsSectionHeader(loc.downloadSettings),
-        ListTile(
-          leading: const Icon(Icons.folder_outlined),
-          title: Text(loc.downloadPath),
-          subtitle: Text(downloadPath),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _selectDownloadPath,
+        WorkspaceHeading(
+          title: loc.settings,
+          description: loc.settingsDescription,
         ),
-        ListTile(
-          leading: const Icon(Icons.download_done_outlined),
-          title: Text(loc.concurrentDownloads),
-          subtitle: Text('$_concurrentDownloads'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showConcurrentDownloadsDialog(context),
-        ),
-        SwitchListTile(
-          secondary: const Icon(Icons.notifications_outlined),
-          title: Text(loc.enableNotification),
-          value: _enableNotification,
-          onChanged: (value) {
-            setState(() {
-              _enableNotification = value;
-            });
-            _saveSettings();
-            ref.read(downloadServiceProvider).setNotificationsEnabled(value);
-          },
-        ),
-
-        // 视频格式默认设置
-        const Divider(),
-        SettingsSectionHeader(loc.defaultSettings),
-        ListTile(
-          leading: const Icon(Icons.video_library_outlined),
-          title: Text(loc.videoQuality),
-          subtitle: Text(_getQualityLabel(context, _videoQuality)),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showVideoQualityDialog(context),
-        ),
-        ListTile(
-          leading: const Icon(Icons.audiotrack_outlined),
-          title: Text(loc.audioQuality),
-          subtitle: Text(_getAudioQualityLabel(context, _audioQuality)),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showAudioQualityDialog(context),
-        ),
-
-        // 外观设置
-        const Divider(),
-        SettingsSectionHeader(loc.appearance),
-        ListTile(
-          leading: const Icon(Icons.language_outlined),
-          title: Text(loc.language),
-          subtitle: Text(_language),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showLanguageDialog(context),
-        ),
-        ListTile(
-          leading: const Icon(Icons.dark_mode_outlined),
-          title: Text(loc.themeMode),
-          subtitle: Text(_getThemeLabel(context, _themeMode)),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showThemeDialog(context),
-        ),
-
-        // 权限管理
-        const Divider(),
-        SettingsSectionHeader(loc.permissionManagement),
-        ListTile(
-          leading: const Icon(Icons.storage_outlined),
-          title: Text(loc.storagePermission),
-          subtitle: Text(loc.storagePermission),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _requestStoragePermission,
-        ),
-        ListTile(
-          leading: const Icon(Icons.notifications_active_outlined),
-          title: Text(loc.notificationSettings),
-          subtitle: Text(loc.notificationSettings),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _requestNotificationPermission,
-        ),
-
-        // Cookie 管理
-        const Divider(),
-        SettingsSectionHeader(loc.cookieManagement),
-        CookieSettingsSection(
-          loc: loc,
-          cookies: _cookies,
-          cookieFilePath: _cookieFilePath,
-          onImportCookieFile: _importCookieFile,
-          onClearCookieFile: _clearCookieFile,
-          onLoginBilibili: () => _loginBilibili(context),
-          onLoginYouTube: () => _loginYouTube(context),
-          onEditBilibiliCookie: () =>
-              _showCookieDialog(context, 'bilibili.com'),
-          onEditYouTubeCookie: () => _showCookieDialog(context, 'youtube.com'),
-          onRemoveBilibiliCookie: () => _removeSingleCookie('bilibili.com'),
-          onRemoveYouTubeCookie: () => _removeSingleCookie('youtube.com'),
-          onAddOtherCookies: () => _showAddCookieDialog(context),
-          onClearAllCookies: () => _showClearCookiesDialog(context),
-        ),
-
-        // 高级
-        const Divider(),
-        SettingsSectionHeader(loc.advanced),
-        ListTile(
-          leading: const Icon(Icons.article_outlined),
-          title: Text(loc.logs),
-          subtitle: Text(loc.logsSubtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (context) => const LogsPage())),
-        ),
-        ListTile(
-          leading: _isUpdating
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.update_outlined),
-          title: Text(loc.updateYtDlp),
-          subtitle: Text(
-            _versionInfo.isEmpty
-                ? loc.updateYtDlp
-                : '${loc.version}: ${_versionInfo['yt-dlp']?.replaceFirst('yt-dlp ', '') ?? 'Unknown'}',
+        for (final section in sections)
+          GlassCard(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: section,
+            ),
           ),
-          trailing: _isUpdating ? null : const Icon(Icons.chevron_right),
-          onTap: _isUpdating ? null : _updateYtDlp,
-        ),
-        ListTile(
-          leading: _isCheckingAppUpdate || _isDownloadingAppUpdate
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.system_update_alt_outlined),
-          title: Text(loc.checkForUpdates),
-          subtitle: Text(_buildAppUpdateSubtitle(loc)),
-          trailing: _isCheckingAppUpdate || _isDownloadingAppUpdate
-              ? null
-              : const Icon(Icons.chevron_right),
-          onTap: _isCheckingAppUpdate || _isDownloadingAppUpdate
-              ? null
-              : _checkForAppUpdate,
-        ),
-        ListTile(
-          leading: const Icon(Icons.delete_sweep_outlined),
-          title: Text(loc.clearCache),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showClearCacheDialog(context),
-        ),
-        ListTile(
-          leading: const Icon(Icons.code),
-          title: Text(loc.customUA),
-          subtitle: Text(
-            _customUA.isEmpty
-                ? loc.systemDefault
-                : _customUA.length > 30
-                ? '${_customUA.substring(0, 30)}...'
-                : _customUA,
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showCustomUADialog(context),
-        ),
-
-        // 关于
-        const Divider(),
-        SettingsSectionHeader(loc.about),
-        ListTile(
-          leading: const Icon(Icons.info_outlined),
-          title: Text('${loc.about} VidBee_Flutter'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showAboutDialog(context),
-        ),
       ],
     );
   }
@@ -1124,6 +1174,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void _showThemeDialog(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final themes = [ThemeMode.system, ThemeMode.light, ThemeMode.dark];
+    var selectedMode = ref.read(themeModeProvider);
 
     showDialog(
       context: context,
@@ -1132,11 +1183,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         content: StatefulBuilder(
           builder: (context, setDialogState) {
             return RadioGroup<ThemeMode>(
-              groupValue: _themeMode,
+              groupValue: selectedMode,
               onChanged: (value) {
                 if (value != null) {
                   setDialogState(() {
-                    _themeMode = value;
+                    selectedMode = value;
                   });
                 }
               },
@@ -1159,16 +1210,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           FilledButton(
             onPressed: () async {
-              ref.read(themeModeProvider.notifier).state = _themeMode;
+              ref.read(themeModeProvider.notifier).state = selectedMode;
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('theme_mode', _themeMode.name);
+              await prefs.setString('theme_mode', selectedMode.name);
               if (!context.mounted) return;
-              setState(() {});
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    '${loc.themeChanged}: ${_getThemeLabel(context, _themeMode)}',
+                    '${loc.themeChanged}: ${_getThemeLabel(context, selectedMode)}',
                   ),
                 ),
               );

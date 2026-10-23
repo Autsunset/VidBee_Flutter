@@ -11,6 +11,23 @@
 
 ---
 
+### Liquid Glass UI
+
+- A new default interface with floating glass navigation, honey-gold accents,
+  translucent panels, and redesigned download/history workspaces.
+- Switch between **Liquid Glass** and the original **Classic** interface in
+  **Settings -> Appearance -> Interface style**. The choice is saved locally;
+  Light, Dark, and System mode remain separate preferences.
+- Switching styles keeps the active tab, visited pages, and download state.
+  High-contrast mode uses opaque surfaces, reduced-motion mode skips navigation
+  animation, and long task lists avoid per-row backdrop blur.
+- Visually inspired by
+  [Liquid-Glass-Android](https://github.com/QWEA0/Liquid-Glass-Android).
+  Implemented with Flutter drawing and bounded backdrop filters, not the
+  Android library's native refraction or sensor-driven lighting pipeline.
+
+---
+
 ### What's New in v2026.08.11.1
 
 - Corrected premature completion events when no usable output file is produced.
@@ -22,7 +39,7 @@
 
 ---
 
-### 📸 Screenshots
+### 📸 Screenshots (Classic)
 
 | Link Parsing | Settings (1) |
 | :---: | :---: |
@@ -37,7 +54,7 @@
 ### ✨ Key Features
 
 - **🌍 Global Support**: Powered by `yt-dlp`, supports 1000+ sites including YouTube, TikTok, Instagram, Twitter, and Bilibili.
-- **🎨 Modern UI**: Clean interface following Material Design 3 guidelines with real-time progress tracking.
+- **🎨 Switchable UI**: Liquid Glass and Classic Material Design 3 interfaces with real-time progress tracking.
 - **📚 Persistent History**: Download history is saved locally and remains available after restarting the app.
 - **🔐 One-Click Login**: Built-in WebView login for platforms like Bilibili and YouTube to access restricted or high-quality content.
 - **⚙️ Full Customization**:

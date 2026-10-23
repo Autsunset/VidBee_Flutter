@@ -10,7 +10,10 @@ import '../../core/providers/providers.dart';
 import '../../core/services/history_service.dart';
 import '../../core/utils/file_opener.dart';
 import '../../shared/i18n/app_localizations.dart';
+import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/glass_widgets.dart';
 import '../../shared/widgets/task_widgets.dart';
+import '../../shared/widgets/workspace_widgets.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -23,6 +26,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   late final HistoryService _historyService;
   StreamSubscription<List<DownloadTask>>? _historySubscription;
   List<DownloadTask> _history = [];
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -51,12 +55,77 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   @override
   void dispose() {
     _historySubscription?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
+
+    if (AppTheme.isLiquidGlass(context)) {
+      return ListView.builder(
+        key: const PageStorageKey('history-list'),
+        controller: _scrollController,
+        padding: EdgeInsets.only(
+          bottom: 24 + MediaQuery.paddingOf(context).bottom,
+        ),
+        itemCount: _history.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                WorkspaceHeading(
+                  title: loc.history,
+                  description: loc.historyDescription,
+                ),
+                if (_history.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: WorkspaceEmptyState(
+                      icon: Icons.video_library_outlined,
+                      title: loc.noHistory,
+                      description: loc.historyDescription,
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${loc.savedLocally}  /  ${_history.length}',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: loc.clearHistory,
+                          onPressed: () => _showClearDialog(context, loc),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          }
+          final task = _history[index - 1];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: HistoryTaskCard(
+              key: ValueKey(task.id),
+              task: task,
+              onDelete: () => _deleteTask(task.id),
+              onTap: () => _showTaskDetails(context, task),
+              loc: loc,
+            ),
+          );
+        },
+      );
+    }
 
     if (_history.isEmpty) {
       return _buildEmptyState(context, loc);
@@ -80,6 +149,8 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           ),
         Expanded(
           child: ListView.builder(
+            key: const PageStorageKey('history-list'),
+            controller: _scrollController,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _history.length,
             itemBuilder: (context, index) => HistoryTaskCard(
@@ -258,57 +329,67 @@ class HistoryTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
+    final isGlass = AppTheme.isLiquidGlass(context);
+    final content = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(isGlass ? 24 : 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            if (isGlass)
+              GlassTaskArtwork(task: task)
+            else
               TaskThumbnail(
                 thumbnailUrl: task.thumbnail,
                 width: 100,
                 height: 56,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title ?? loc.unknownTitle,
-                      style: Theme.of(context).textTheme.titleSmall,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        TaskStatusChip(status: task.status, loc: loc),
-                        const SizedBox(width: 8),
-                        if (task.type == DownloadType.audio)
-                          Chip(
-                            label: Text(loc.audio),
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title ?? loc.unknownTitle,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      TaskStatusChip(status: task.status, loc: loc),
+                      if (task.type == DownloadType.audio)
+                        Chip(
+                          label: Text(loc.audio),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: onDelete,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              tooltip: loc.delete,
+              icon: const Icon(Icons.delete_outline),
+              onPressed: onDelete,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ],
         ),
       ),
     );
+    if (isGlass) {
+      return GlassCard(
+        margin: const EdgeInsets.only(bottom: 14),
+        child: content,
+      );
+    }
+    return Card(margin: const EdgeInsets.only(bottom: 12), child: content);
   }
 }
 

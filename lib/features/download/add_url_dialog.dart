@@ -10,6 +10,7 @@ import '../../core/utils/app_logger.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../core/utils/url_utils.dart';
 import '../../shared/i18n/app_localizations.dart';
+import '../../shared/theme/app_theme.dart';
 
 class AddUrlDialog extends ConsumerStatefulWidget {
   const AddUrlDialog({super.key});
@@ -39,8 +40,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     final videoInfo = ref.watch(currentVideoInfoProvider);
     final selectedFormat = ref.watch(selectedFormatProvider);
     final loc = AppLocalizations.of(context)!;
+    final isGlass = AppTheme.isLiquidGlass(context);
 
     return AlertDialog(
+      icon: isGlass ? const Icon(Icons.add_link_rounded) : null,
       title: Text(loc.addUrl),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 400),
@@ -53,7 +56,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                 controller: _urlController,
                 decoration: InputDecoration(
                   hintText: loc.pasteUrl,
-                  border: const OutlineInputBorder(),
+                  border: isGlass ? null : const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.link_outlined),
                 ),
                 autofocus: true,
@@ -324,7 +327,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     // 自动补全 URL
     url = normalizeVideoUrl(url);
     if (!isValidHttpUrl(url)) {
-      AppLogger.error('解析前 URL 无效: raw=${_urlController.text}, normalized=$url');
+      AppLogger.error(
+        '解析前 URL 无效: raw=${_urlController.text}, normalized=$url',
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
