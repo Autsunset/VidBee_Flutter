@@ -57,6 +57,32 @@ void main() {
     });
   });
 
+  group('extractVideoUrl', () {
+    test('提取短链，忽略分享文案中紧邻的中文标点', () {
+      expect(
+        extractVideoUrl('【视频标题】https://b23.tv/demo，分享自哔哩哔哩'),
+        'https://b23.tv/demo',
+      );
+    });
+
+    test('保留通用链接的查询参数并去除外围标点', () {
+      expect(
+        extractVideoUrl('Watch (HTTPS://example.com/video?v=123&t=5).'),
+        'HTTPS://example.com/video?v=123&t=5',
+      );
+      expect(
+        normalizeVideoUrl('HTTPS://example.com/video?v=123&t=5'),
+        'HTTPS://example.com/video?v=123&t=5',
+      );
+    });
+
+    test('忽略没有 HTTP(S) 链接的标题和无效链接', () {
+      expect(extractVideoUrl('BV1xx411c7mD'), isNull);
+      expect(extractVideoUrl('看看这个 ftp://example.com/video'), isNull);
+      expect(extractVideoUrl('https://?v=123'), isNull);
+    });
+  });
+
   group('resolveDownloadUrl', () {
     test('优先使用解析时锁定的 URL', () {
       expect(

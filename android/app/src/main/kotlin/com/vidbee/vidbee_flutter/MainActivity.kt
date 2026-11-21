@@ -1,11 +1,15 @@
 package com.vidbee.vidbee_flutter
 
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 
 class MainActivity : FlutterActivity() {
+    private var platformPlugin: VidBeePlatformPlugin? = null
+
     override fun provideFlutterEngine(context: Context): FlutterEngine {
         val cache = FlutterEngineCache.getInstance()
         return cache.get(ENGINE_ID) ?: FlutterEngine(context.applicationContext).also {
@@ -15,9 +19,21 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        if (!flutterEngine.plugins.has(VidBeePlatformPlugin::class.java)) {
-            flutterEngine.plugins.add(VidBeePlatformPlugin())
+        val existingPlugin =
+            flutterEngine.plugins.get(VidBeePlatformPlugin::class.java) as? VidBeePlatformPlugin
+        platformPlugin = existingPlugin ?: VidBeePlatformPlugin().also {
+            flutterEngine.plugins.add(it)
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) platformPlugin?.receiveShare(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        platformPlugin?.receiveShare(intent)
     }
 
     // The foreground service protects the process; retaining the engine keeps

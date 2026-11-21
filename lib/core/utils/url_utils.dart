@@ -24,7 +24,7 @@ String normalizeVideoUrl(String input) {
     input = extractedUrl;
   }
 
-  if (input.startsWith('http://') || input.startsWith('https://')) {
+  if (RegExp(r'^https?://', caseSensitive: false).hasMatch(input)) {
     return input;
   }
 
@@ -51,33 +51,36 @@ String normalizeVideoUrl(String input) {
   return 'https://$input';
 }
 
-/// 从文本中提取第一个视频相关 URL；找不到返回 null。
+/// 优先提取常见视频站点的链接，否则返回第一个有效的 HTTP(S) 链接。
 String? extractVideoUrl(String text) {
+  const urlTail = r'[^\s<>"{}|\\^`\[\]，。！？；、：“”‘’（）【】《》]+';
   final urlPatterns = [
     // Bilibili (支持 www 和移动端 m 域名)
-    RegExp(r'https?://(?:www\.|m\.)?bilibili\.com/video/[^\s]+'),
+    r'https?://(?:www\.|m\.)?bilibili\.com/video/',
     // Bilibili 短链
-    RegExp(r'https?://b23\.tv/[^\s]+'),
+    r'https?://b23\.tv/',
     // YouTube
-    RegExp(r'https?://(?:www\.)?youtube\.com/watch\?v=[^\s]+'),
-    RegExp(r'https?://(?:www\.)?youtube\.com/shorts/[^\s]+'),
-    RegExp(r'https?://youtu\.be/[^\s]+'),
+    r'https?://(?:www\.)?youtube\.com/watch\?v=',
+    r'https?://(?:www\.)?youtube\.com/shorts/',
+    r'https?://youtu\.be/',
     // 抖音
-    RegExp(r'https?://(?:www\.)?douyin\.com/[^\s]+'),
-    RegExp(r'https?://v\.douyin\.com/[^\s]+'),
+    r'https?://(?:www\.)?douyin\.com/',
+    r'https?://v\.douyin\.com/',
     // 通用 URL
-    RegExp(r'https?://[^\s<>"{}|\\^`\[\]]+'),
+    r'https?://',
   ];
 
-  for (final pattern in urlPatterns) {
-    final match = pattern.firstMatch(text);
-    if (match != null) {
-      var url = match.group(0) ?? '';
+  for (final prefix in urlPatterns) {
+    final pattern = RegExp('$prefix$urlTail', caseSensitive: false);
+    for (final match in pattern.allMatches(text)) {
+      var url = match.group(0)!;
       // 仅移除末尾的标点符号和空白字符，必须保留 ?v= 等查询参数，
       // 否则会把 youtube.com/watch?v=xxx 砍成 watch 导致解析失败
       url = url.replaceAll(RegExp(r'[.,;:!?\s]+$'), '');
-      url = convertMobileToDesktopUrl(url);
-      return url;
+      if (url.endsWith(')') && !url.contains('(')) {
+        url = url.substring(0, url.length - 1);
+      }
+      if (isValidHttpUrl(url)) return convertMobileToDesktopUrl(url);
     }
   }
 

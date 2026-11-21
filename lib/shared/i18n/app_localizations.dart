@@ -37,6 +37,7 @@ class AppLocalizations {
 
   String get appTitle => _translate('appTitle');
   String get addUrl => _translate('addUrl');
+  String get sharedUrlMissing => _translate('sharedUrlMissing');
   String get download => _translate('download');
   String get history => _translate('history');
   String get settings => _translate('settings');

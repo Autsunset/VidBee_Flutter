@@ -2,6 +2,7 @@ class AppLocalizationsZh {
   final Map<String, String> _localizedValues = {
     'appTitle': 'VidBee',
     'addUrl': '添加链接',
+    'sharedUrlMissing': '分享内容中未找到视频链接。',
     'download': '下载',
     'history': '历史',
     'settings': '设置',

@@ -10,10 +10,11 @@ import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/glass_widgets.dart';
 import '../../shared/widgets/task_widgets.dart';
 import '../../shared/widgets/workspace_widgets.dart';
-import 'add_url_dialog.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
-  const DownloadsPage({super.key});
+  const DownloadsPage({super.key, required this.onAddUrl});
+
+  final VoidCallback onAddUrl;
 
   @override
   ConsumerState<DownloadsPage> createState() => _DownloadsPageState();
@@ -110,7 +111,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                           title: loc.readyToDownload,
                           description: loc.readyToDownloadDescription,
                           action: FilledButton.icon(
-                            onPressed: _showAddUrlDialog,
+                            onPressed: widget.onAddUrl,
                             icon: const Icon(Icons.add_rounded),
                             label: Text(loc.addDownload),
                           ),
@@ -118,7 +119,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                       : GlassSurface(
                           borderRadius: 24,
                           child: InkWell(
-                            onTap: _showAddUrlDialog,
+                            onTap: widget.onAddUrl,
                             borderRadius: BorderRadius.circular(24),
                             child: Padding(
                               padding: const EdgeInsets.all(18),
@@ -204,10 +205,6 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         loc: loc,
       ),
     );
-  }
-
-  void _showAddUrlDialog() {
-    showDialog(context: context, builder: (context) => const AddUrlDialog());
   }
 
   Widget _buildEmptyState(BuildContext context, AppLocalizations loc) {

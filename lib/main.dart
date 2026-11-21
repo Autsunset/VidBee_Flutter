@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +17,7 @@ import 'core/providers/service_providers.dart';
 import 'core/services/services.dart';
 import 'core/utils/app_logger.dart';
 import 'core/utils/permission_helper.dart';
+import 'core/utils/url_utils.dart';
 import 'features/download/download.dart';
 import 'features/history/history.dart';
 import 'features/settings/settings.dart';
@@ -97,12 +100,15 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  static const _shareChannel = MethodChannel('com.vidbee.share');
   int _selectedIndex = 0;
+  final _pendingSharedTexts = Queue<String>();
+  bool _isAddUrlDialogOpen = false;
 
-  final List<Widget?> _pages = [const DownloadsPage(), null, null];
+  late final List<Widget?> _pages = [_createPage(0), null, null];
 
   Widget _createPage(int index) => switch (index) {
-    0 => const DownloadsPage(),
+    0 => DownloadsPage(onAddUrl: _showAddUrlDialog),
     1 => const HistoryPage(),
     2 => const SettingsPage(),
     _ => const SizedBox.shrink(),
@@ -112,6 +118,53 @@ class _HomePageState extends ConsumerState<HomePage> {
   void initState() {
     super.initState();
     _loadSavedSettings();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _shareChannel.setMethodCallHandler((call) async {
+          if (call.method == 'shareReceived') await _receiveSharedTexts();
+        });
+        unawaited(_receiveSharedTexts());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _shareChannel.setMethodCallHandler(null);
+    }
+    super.dispose();
+  }
+
+  Future<void> _receiveSharedTexts() async {
+    List<String>? texts;
+    try {
+      texts = await _shareChannel.invokeListMethod<String>('takeSharedTexts');
+    } on MissingPluginException {
+      return;
+    } on PlatformException catch (error, stackTrace) {
+      AppLogger.error('读取分享内容失败', error, stackTrace);
+      return;
+    }
+    if (!mounted || texts == null) return;
+    _pendingSharedTexts.addAll(texts);
+    _showNextSharedUrl();
+  }
+
+  void _showNextSharedUrl() {
+    if (_isAddUrlDialogOpen) return;
+    while (_pendingSharedTexts.isNotEmpty) {
+      final url = extractVideoUrl(_pendingSharedTexts.removeFirst());
+      if (url != null) {
+        _selectPage(0);
+        unawaited(_showAddUrlDialog(initialUrl: url));
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.sharedUrlMissing)),
+      );
+    }
   }
 
   Future<void> _loadSavedSettings() async {
@@ -185,7 +238,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   child: IconButton(
                     tooltip: loc.addUrl,
                     icon: const Icon(Icons.add_rounded),
-                    onPressed: () => _showAddUrlDialog(context),
+                    onPressed: _showAddUrlDialog,
                   ),
                 ),
               )
@@ -193,7 +246,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               IconButton(
                 tooltip: loc.addUrl,
                 icon: const Icon(Icons.add),
-                onPressed: () => _showAddUrlDialog(context),
+                onPressed: _showAddUrlDialog,
               ),
           ],
         ),
@@ -247,8 +300,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
-  void _showAddUrlDialog(BuildContext context) {
-    showDialog(context: context, builder: (context) => const AddUrlDialog());
+  Future<void> _showAddUrlDialog({String? initialUrl}) async {
+    if (_isAddUrlDialogOpen) return;
+    _isAddUrlDialogOpen = true;
+    final route = DialogRoute<void>(
+      context: context,
+      builder: (context) => AddUrlDialog(initialUrl: initialUrl),
+    );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
+    if (!mounted) return;
+    _isAddUrlDialogOpen = false;
+    _showNextSharedUrl();
   }
 }
 

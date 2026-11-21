@@ -54,6 +54,7 @@
 ### ✨ Key Features
 
 - **🌍 Global Support**: Powered by `yt-dlp`, supports 1000+ sites including YouTube, TikTok, Instagram, Twitter, and Bilibili.
+- **📲 Share to VidBee**: Import video links directly from the Android share sheet, even when the link is mixed with a title or caption.
 - **🎨 Switchable UI**: Liquid Glass and Classic Material Design 3 interfaces with real-time progress tracking.
 - **📚 Persistent History**: Download history is saved locally and remains available after restarting the app.
 - **🔐 One-Click Login**: Built-in WebView login for platforms like Bilibili and YouTube to access restricted or high-quality content.
@@ -68,8 +69,8 @@
 ### 📥 Quick Start
 
 1. **Download**: Get the latest APK from [Latest Release](https://github.com/Autsunset/VidBee_Flutter/releases/latest) and install it on your Android device.
-2. **Copy Link**: Copy a video URL from your favorite app.
-3. **Download**: Open VidBee_Flutter. The app will automatically detect the link—just click "Parse" and choose your quality to start.
+2. **Import a Link**: In your browser or video app, tap **Share** and select **VidBee_Flutter**. The download dialog opens with the link filled in. You can also copy the link and paste it into the app manually.
+3. **Download**: Tap **Parse**, select a quality or audio format, then tap **Download**.
 
 ---
 

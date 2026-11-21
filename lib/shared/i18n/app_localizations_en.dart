@@ -2,6 +2,7 @@ class AppLocalizationsEn {
   final Map<String, String> _localizedValues = {
     'appTitle': 'VidBee',
     'addUrl': 'Add URL',
+    'sharedUrlMissing': 'The shared text does not contain a video link.',
     'download': 'Download',
     'history': 'History',
     'settings': 'Settings',

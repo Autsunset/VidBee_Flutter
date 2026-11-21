@@ -13,15 +13,20 @@ import '../../shared/i18n/app_localizations.dart';
 import '../../shared/theme/app_theme.dart';
 
 class AddUrlDialog extends ConsumerStatefulWidget {
-  const AddUrlDialog({super.key});
+  const AddUrlDialog({super.key, this.initialUrl});
+
+  final String? initialUrl;
 
   @override
   ConsumerState<AddUrlDialog> createState() => _AddUrlDialogState();
 }
 
 class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
-  final _urlController = TextEditingController();
+  late final _urlController = TextEditingController(text: widget.initialUrl);
   bool _isAudioOnly = false;
+  bool _isLoading = false;
+  VideoInfo? _videoInfo;
+  VideoFormat? _selectedFormat;
   final CookieService _cookieService = CookieService();
   // 解析完成后缓存当前域名是否已有 Cookie，避免在格式列表中对每个 chip 反复异步查询
   bool _hasCookieForDomain = false;
@@ -36,9 +41,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = ref.watch(isLoadingVideoInfoProvider);
-    final videoInfo = ref.watch(currentVideoInfoProvider);
-    final selectedFormat = ref.watch(selectedFormatProvider);
+    final videoInfo = _videoInfo;
     final loc = AppLocalizations.of(context)!;
     final isGlass = AppTheme.isLiquidGlass(context);
 
@@ -59,15 +62,15 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                   border: isGlass ? null : const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.link_outlined),
                 ),
-                autofocus: true,
+                autofocus: widget.initialUrl == null,
                 maxLines: null,
-                enabled: !isLoading,
+                enabled: !_isLoading,
               ),
               const SizedBox(height: 16),
               SwitchListTile(
                 title: Text(loc.audioOnly),
                 value: _isAudioOnly,
-                onChanged: isLoading
+                onChanged: _isLoading
                     ? null
                     : (value) {
                         setState(() {
@@ -75,7 +78,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                         });
                       },
               ),
-              if (isLoading) ...[
+              if (_isLoading) ...[
                 const SizedBox(height: 16),
                 Center(
                   child: Column(
@@ -93,7 +96,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                 const SizedBox(height: 16),
                 _buildVideoPreview(videoInfo),
                 const SizedBox(height: 16),
-                _buildFormatSelector(videoInfo, selectedFormat),
+                _buildFormatSelector(videoInfo, _selectedFormat),
               ],
             ],
           ),
@@ -101,13 +104,13 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: isLoading ? null : () => _resetAndClose(),
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
           child: Text(loc.cancel),
         ),
         if (videoInfo == null)
           FilledButton(
-            onPressed: isLoading ? null : _parseUrl,
-            child: isLoading
+            onPressed: _isLoading ? null : _parseUrl,
+            child: _isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -117,9 +120,9 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
           )
         else
           FilledButton(
-            onPressed: isLoading
+            onPressed: _isLoading
                 ? null
-                : () => _startDownload(videoInfo, selectedFormat),
+                : () => _startDownload(videoInfo, _selectedFormat),
             child: Text(loc.download),
           ),
       ],
@@ -246,8 +249,7 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
                   ? null
                   : (selected) {
                       if (selected) {
-                        ref.read(selectedFormatProvider.notifier).state =
-                            format;
+                        setState(() => _selectedFormat = format);
                       }
                     },
             );
@@ -342,10 +344,10 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     }
     AppLogger.info('用户开始解析 URL: $url');
 
-    ref.read(isLoadingVideoInfoProvider.notifier).state = true;
-    ref.read(currentVideoInfoProvider.notifier).state = null;
-    ref.read(selectedFormatProvider.notifier).state = null;
     setState(() {
+      _isLoading = true;
+      _videoInfo = null;
+      _selectedFormat = null;
       _parsedUrl = null;
       _hasCookieForDomain = false;
     });
@@ -371,24 +373,25 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     }
 
     if (mounted) {
-      ref.read(isLoadingVideoInfoProvider.notifier).state = false;
       setState(() {
+        _isLoading = false;
+        _videoInfo = videoInfo;
         _hasCookieForDomain = domainHasCookie;
         // 解析成功时锁定 URL；即使之后输入框被清空，下载仍用此 URL
         _parsedUrl = videoInfo != null ? url : null;
-      });
-      if (videoInfo != null) {
-        ref.read(currentVideoInfoProvider.notifier).state = videoInfo;
-        // 根据默认质量设置预选格式
-        final formats = _isAudioOnly
-            ? videoInfo.bestAudioFormats
-            : videoInfo.bestVideoFormats;
-        if (formats.isNotEmpty) {
-          ref.read(selectedFormatProvider.notifier).state = _isAudioOnly
-              ? formats.first
-              : _pickDefaultVideoFormat(formats, defaultVideoQuality);
+        if (videoInfo != null) {
+          // 根据默认质量设置预选格式
+          final formats = _isAudioOnly
+              ? videoInfo.bestAudioFormats
+              : videoInfo.bestVideoFormats;
+          if (formats.isNotEmpty) {
+            _selectedFormat = _isAudioOnly
+                ? formats.first
+                : _pickDefaultVideoFormat(formats, defaultVideoQuality);
+          }
         }
-      } else {
+      });
+      if (videoInfo == null) {
         final hasCookie = await _cookieService.hasCookie(domain);
         AppLogger.error(
           '用户解析失败: domain=$domain, hasCookie=$hasCookie, url=$url',
@@ -451,7 +454,8 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
     // 先检查是否有管理存储权限
     final hasPermission =
         await PermissionHelper.checkManageExternalStoragePermission();
-    if (!hasPermission && mounted) {
+    if (!mounted) return;
+    if (!hasPermission) {
       final loc = AppLocalizations.of(context)!;
       // 如果没有权限，提示用户去设置
       await PermissionHelper.showPermissionDialog(
@@ -504,20 +508,11 @@ class _AddUrlDialogState extends ConsumerState<AddUrlDialog> {
       downloadPath: downloadPath,
     );
 
-    // 刷新任务列表
-    ref.read(downloadTasksProvider.notifier).state = downloadService
-        .getAllTasks();
-
     if (mounted) {
-      _resetAndClose();
+      // 刷新任务列表
+      ref.read(downloadTasksProvider.notifier).state = downloadService
+          .getAllTasks();
+      Navigator.of(context).pop();
     }
-  }
-
-  void _resetAndClose() {
-    ref.read(isLoadingVideoInfoProvider.notifier).state = false;
-    ref.read(currentVideoInfoProvider.notifier).state = null;
-    ref.read(selectedFormatProvider.notifier).state = null;
-    _parsedUrl = null;
-    Navigator.of(context).pop();
   }
 }

@@ -2,6 +2,7 @@ class AppLocalizationsKo {
   final Map<String, String> _localizedValues = {
     'appTitle': 'VidBee',
     'addUrl': 'URL 추가',
+    'sharedUrlMissing': '공유된 텍스트에 동영상 링크가 없습니다.',
     'download': '다운로드',
     'history': '히스토리',
     'settings': '설정',

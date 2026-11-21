@@ -26,10 +26,22 @@ class VidBeePlatformPlugin : FlutterPlugin {
     private val mediaScannerChannel = "com.vidbee.media_scanner"
     private val appUpdateChannel = "com.vidbee.app_update"
     private val fileOpenerChannel = "com.vidbee.file_opener"
+    private lateinit var shareChannel: MethodChannel
+    private val pendingSharedTexts = mutableListOf<String>()
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         val messenger = binding.binaryMessenger
+
+        shareChannel = channel(messenger, "com.vidbee.share")
+        shareChannel.setMethodCallHandler { call, result ->
+            if (call.method == "takeSharedTexts") {
+                result.success(pendingSharedTexts.toList())
+                pendingSharedTexts.clear()
+            } else {
+                result.notImplemented()
+            }
+        }
 
         channel(messenger, mediaScannerChannel).setMethodCallHandler { call, result ->
             if (call.method == "scanFile") {
@@ -126,6 +138,14 @@ class VidBeePlatformPlugin : FlutterPlugin {
 
     private fun channel(messenger: BinaryMessenger, name: String): MethodChannel =
         MethodChannel(messenger, name).also { channels.add(it) }
+
+    fun receiveShare(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+        if (text.isNullOrBlank()) return
+        pendingSharedTexts.add(text)
+        shareChannel.invokeMethod("shareReceived", null)
+    }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channels.forEach { it.setMethodCallHandler(null) }

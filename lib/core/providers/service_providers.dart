@@ -47,18 +47,6 @@ final downloadTasksProvider = StateProvider<List<DownloadTask>>((ref) {
   return [];
 });
 
-final currentVideoInfoProvider = StateProvider<VideoInfo?>((ref) {
-  return null;
-});
-
-final isLoadingVideoInfoProvider = StateProvider<bool>((ref) {
-  return false;
-});
-
-final selectedFormatProvider = StateProvider<VideoFormat?>((ref) {
-  return null;
-});
-
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(() => db.close());
